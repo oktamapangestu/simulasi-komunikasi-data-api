@@ -1,0 +1,56 @@
+// Protocol Buffers - kontrak layanan gRPC
+// Mendefinisikan service (daftar RPC) dan message (struktur data).
+// Data dikirim dalam format biner (protobuf) di atas HTTP/2.
+
+syntax = "proto3";
+
+package perpustakaan;
+
+service PerpustakaanService {
+  rpc GetAllBuku (Kosong) returns (DaftarBuku);       // READ semua
+  rpc GetBukuById (BukuId) returns (Buku);            // READ satu
+  rpc CreateBuku (BukuInput) returns (Buku);          // CREATE
+  rpc UpdateBuku (UpdateBukuRequest) returns (Buku);  // UPDATE
+  rpc DeleteBuku (BukuId) returns (Buku);             // DELETE
+}
+
+message Kosong {}
+
+message BukuId {
+  int32 id = 1;
+}
+
+message Buku {
+  int32 id = 1;
+  string judul = 2;
+  string penulis = 3;
+  string penerbit = 4;
+  int32 tahun_terbit = 5;
+  string isbn = 6;
+  int32 stok = 7;
+}
+
+message DaftarBuku {
+  repeated Buku buku = 1;
+}
+
+// "optional" agar server bisa membedakan field yang tidak dikirim
+// dengan field yang dikirim bernilai 0 / string kosong.
+message BukuInput {
+  optional string judul = 1;
+  optional string penulis = 2;
+  optional string penerbit = 3;
+  optional int32 tahun_terbit = 4;
+  optional string isbn = 5;
+  optional int32 stok = 6;
+}
+
+message UpdateBukuRequest {
+  int32 id = 1;
+  optional string judul = 2;
+  optional string penulis = 3;
+  optional string penerbit = 4;
+  optional int32 tahun_terbit = 5;
+  optional string isbn = 6;
+  optional int32 stok = 7;
+}

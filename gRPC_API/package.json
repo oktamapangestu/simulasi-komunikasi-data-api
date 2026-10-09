@@ -1,0 +1,14 @@
+{
+  "name": "grpc-api-perpustakaan",
+  "version": "1.0.0",
+  "description": "gRPC API CRUD buku perpustakaan",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "client": "node client.js"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.12.5",
+    "@grpc/proto-loader": "^0.7.13"
+  }
+}

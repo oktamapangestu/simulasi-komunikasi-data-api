@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebSocket Perpustakaan</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 24px auto; padding: 0 16px; color: #222; }
+    h1 { font-size: 1.4rem; }
+    #status { font-size: .9rem; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: .9rem; }
+    th, td { border-bottom: 1px solid #ddd; padding: 6px 8px; text-align: left; }
+    form { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+    input, button { padding: 6px 8px; font: inherit; }
+    #log { background: #f5f5f5; padding: 8px; height: 180px; overflow-y: auto; font-family: monospace; font-size: .8rem; white-space: pre-wrap; }
+    .flash { animation: flash 1.2s; }
+    @keyframes flash { from { background: #fff3a0; } to { background: transparent; } }
+  </style>
+</head>
+<body>
+  <h1>Perpustakaan — Demo WebSocket</h1>
+  <p id="status">Menghubungkan...</p>
+  <p>Buka halaman ini di dua tab. Perubahan di satu tab langsung muncul di tab lain tanpa refresh.</p>
+
+  <form id="form">
+    <input type="hidden" name="id">
+    <input name="judul" placeholder="Judul" required>
+    <input name="penulis" placeholder="Penulis" required>
+    <input name="penerbit" placeholder="Penerbit" required>
+    <input name="tahunTerbit" type="number" placeholder="Tahun terbit" required>
+    <input name="isbn" placeholder="ISBN" required>
+    <input name="stok" type="number" min="0" placeholder="Stok" required>
+    <button type="submit" id="simpan">Tambah</button>
+    <button type="button" id="batal" hidden>Batal</button>
+  </form>
+
+  <table>
+    <thead><tr><th>ID</th><th>Judul</th><th>Penulis</th><th>Penerbit</th><th>Tahun</th><th>ISBN</th><th>Stok</th><th></th></tr></thead>
+    <tbody id="tabel"></tbody>
+  </table>
+
+  <h2 style="font-size:1rem">Log pesan</h2>
+  <div id="log"></div>
+
+  <script>
+    const socket = new WebSocket(`ws://${location.host}/ws`);
+    const form = document.getElementById('form');
+    let bukuList = [];
+    let requestId = 0;
+
+    function log(arah, pesan) {
+      const el = document.getElementById('log');
+      el.textContent += `${arah} ${JSON.stringify(pesan)}\n`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function kirim(pesan) {
+      pesan.requestId = ++requestId;
+      log('→', pesan);
+      socket.send(JSON.stringify(pesan));
+    }
+
+    function render(idBerubah) {
+      const tbody = document.getElementById('tabel');
+      tbody.innerHTML = '';
+      for (const b of bukuList) {
+        const tr = document.createElement('tr');
+        if (b.id === idBerubah) tr.className = 'flash';
+        for (const f of ['id', 'judul', 'penulis', 'penerbit', 'tahunTerbit', 'isbn', 'stok']) {
+          const td = document.createElement('td');
+          td.textContent = b[f];
+          tr.appendChild(td);
+        }
+        const aksi = document.createElement('td');
+        const ubah = document.createElement('button');
+        ubah.textContent = 'Ubah';
+        ubah.onclick = () => isiForm(b);
+        const hapus = document.createElement('button');
+        hapus.textContent = 'Hapus';
+        hapus.onclick = () => kirim({ aksi: 'delete', id: b.id });
+        aksi.append(ubah, ' ', hapus);
+        tr.appendChild(aksi);
+        tbody.appendChild(tr);
+      }
+    }
+
+    function isiForm(buku) {
+      for (const [k, v] of Object.entries(buku)) if (form.elements[k]) form.elements[k].value = v;
+      document.getElementById('simpan').textContent = 'Simpan perubahan';
+      document.getElementById('batal').hidden = false;
+    }
+
+    function resetForm() {
+      form.reset();
+      form.elements.id.value = '';
+      document.getElementById('simpan').textContent = 'Tambah';
+      document.getElementById('batal').hidden = true;
+    }
+
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const { id, ...data } = Object.fromEntries(new FormData(form));
+      data.tahunTerbit = Number(data.tahunTerbit);
+      data.stok = Number(data.stok);
+      kirim(id ? { aksi: 'update', id: Number(id), data } : { aksi: 'create', data });
+      resetForm();
+    };
+    document.getElementById('batal').onclick = resetForm;
+
+    socket.onopen = () => {
+      document.getElementById('status').textContent = '🟢 Terhubung ke ws://' + location.host + '/ws';
+      kirim({ aksi: 'getAll' });
+    };
+    socket.onclose = () => { document.getElementById('status').textContent = '🔴 Koneksi terputus'; };
+
+    socket.onmessage = (event) => {
+      const pesan = JSON.parse(event.data);
+      log('←', pesan);
+
+      if (pesan.tipe === 'respons') {
+        if (pesan.aksi === 'getAll' && pesan.status === 'sukses') { bukuList = pesan.data; render(); }
+        if (pesan.status === 'gagal') alert(pesan.pesan + (pesan.errors ? '\n' + pesan.errors.join('\n') : ''));
+      }
+
+      // Notifikasi dari server: berlaku untuk SEMUA tab yang terhubung
+      if (pesan.tipe === 'notifikasi') {
+        const buku = pesan.data;
+        if (pesan.event === 'buku.ditambahkan') bukuList.push(buku);
+        if (pesan.event === 'buku.diperbarui') bukuList = bukuList.map((b) => (b.id === buku.id ? buku : b));
+        if (pesan.event === 'buku.dihapus') bukuList = bukuList.filter((b) => b.id !== buku.id);
+        render(buku.id);
+      }
+    };
+  </script>
+</body>
+</html>

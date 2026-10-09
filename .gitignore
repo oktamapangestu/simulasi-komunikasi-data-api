@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+
+# Hasil build untuk publikasi Artifact (dibuat ulang oleh build-web.js)
+SIMULASI_VIDEO/web/artifact.html
+
+# Frame uji dari `node record.js --snapshot`
+SIMULASI_VIDEO/output/snapshot_*.png

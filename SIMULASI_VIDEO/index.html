@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulasi Komunikasi Data</title>
+  <style>
+    :root { --bg: #070c18; --panel: #111a2e; --border: #24324f; --text: #e6edf7; --muted: #8ea3c2; --accent: #38bdf8; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; }
+    main { max-width: 1280px; margin: 0 auto; padding: 16px; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    nav button { background: var(--panel); color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 8px 16px; font: inherit; cursor: pointer; }
+    nav button.aktif { color: var(--bg); background: var(--accent); border-color: var(--accent); font-weight: 700; }
+    canvas { width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--border); background: #0a1020; }
+    .kontrol { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    .kontrol button, .kontrol select { background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+    .kontrol input[type=range] { flex: 1; accent-color: var(--accent); }
+    #waktu { font-family: Menlo, monospace; color: var(--muted); font-size: 14px; min-width: 110px; text-align: right; }
+    p.info { color: var(--muted); font-size: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav id="tabs"></nav>
+    <canvas id="layar" width="1920" height="1080"></canvas>
+    <div class="kontrol">
+      <button id="putar">⏸ Jeda</button>
+      <button id="ulang">↺ Ulang</button>
+      <input id="geser" type="range" min="0" max="1000" value="0">
+      <span id="waktu">0:00 / 0:00</span>
+      <select id="kecepatan">
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="1.5">1.5×</option>
+        <option value="2">2×</option>
+      </select>
+    </div>
+    <p class="info">Spasi = putar/jeda · ← → = mundur/maju 5 detik</p>
+  </main>
+
+  <script src="engine.js"></script>
+  <script src="scenes/rest.js"></script>
+  <script src="scenes/soap.js"></script>
+  <script src="scenes/graphql.js"></script>
+  <script src="scenes/grpc.js"></script>
+  <script src="scenes/websocket.js"></script>
+  <script>
+    const canvas = document.getElementById('layar');
+    const ctx = canvas.getContext('2d');
+
+    // Mode rekam (dipakai record.js): tidak ada animasi otomatis
+    window.renderFrame = (id, t) => SIM.render(ctx, id, t);
+    if (new URLSearchParams(location.search).has('rekam')) {
+      document.body.style.margin = '0';
+      document.querySelector('main').style.cssText = 'padding:0;max-width:none';
+      for (const el of document.querySelectorAll('nav, .kontrol, .info')) el.remove();
+      canvas.style.cssText = 'width:1920px;height:1080px;border:0;border-radius:0';
+    } else {
+      const nama = { rest: 'REST', soap: 'SOAP', graphql: 'GraphQL', grpc: 'gRPC', websocket: 'WebSocket' };
+      let aktif = SIM.order[0];
+      let t = 0;
+      let main = true;
+      let kecepatan = 1;
+      let sebelum = performance.now();
+      const tabs = document.getElementById('tabs');
+      const fmt = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
+
+      for (const id of SIM.order) {
+        const b = document.createElement('button');
+        b.textContent = nama[id] || id;
+        b.onclick = () => pilih(id);
+        b.dataset.id = id;
+        tabs.appendChild(b);
+      }
+
+      function pilih(id) {
+        aktif = id;
+        t = 0;
+        main = true;
+        document.documentElement.style.setProperty('--accent', SIM.scenes[id].cfg.accent);
+        for (const b of tabs.children) b.classList.toggle('aktif', b.dataset.id === id);
+      }
+
+      function setMain(v) {
+        main = v;
+        document.getElementById('putar').textContent = main ? '⏸ Jeda' : '▶ Putar';
+      }
+
+      document.getElementById('putar').onclick = () => setMain(!main);
+      document.getElementById('ulang').onclick = () => { t = 0; setMain(true); };
+      document.getElementById('kecepatan').onchange = (e) => (kecepatan = Number(e.target.value));
+      document.getElementById('geser').oninput = (e) => (t = (e.target.value / 1000) * SIM.duration(aktif));
+      document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') { e.preventDefault(); setMain(!main); }
+        if (e.code === 'ArrowRight') t = Math.min(SIM.duration(aktif), t + 5);
+        if (e.code === 'ArrowLeft') t = Math.max(0, t - 5);
+      });
+
+      function loop(now) {
+        const d = SIM.duration(aktif);
+        if (main) t = Math.min(d, t + ((now - sebelum) / 1000) * kecepatan);
+        if (t >= d) setMain(false);
+        sebelum = now;
+        SIM.render(ctx, aktif, t);
+        document.getElementById('geser').value = (t / d) * 1000;
+        document.getElementById('waktu').textContent = `${fmt(t)} / ${fmt(d)}`;
+        requestAnimationFrame(loop);
+      }
+
+      const awal = location.hash.slice(1);
+      pilih(SIM.scenes[awal] ? awal : aktif);
+      requestAnimationFrame(loop);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "websocket-api-perpustakaan",
+  "version": "1.0.0",
+  "description": "WebSocket API CRUD buku perpustakaan",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "client": "node client.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

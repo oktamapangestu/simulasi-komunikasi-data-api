@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  WSDL (Web Services Description Language) - kontrak layanan SOAP
+  Mendefinisikan: tipe data (types), pesan (message), operasi (portType),
+  protokol (binding), dan alamat layanan (service).
+-->
+<definitions name="PerpustakaanService"
+             targetNamespace="http://perpustakaan.example.com/buku"
+             xmlns="http://schemas.xmlsoap.org/wsdl/"
+             xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+             xmlns:tns="http://perpustakaan.example.com/buku"
+             xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+
+  <!-- ===================== TYPES ===================== -->
+  <types>
+    <xsd:schema targetNamespace="http://perpustakaan.example.com/buku" elementFormDefault="qualified">
+
+      <xsd:complexType name="Buku">
+        <xsd:sequence>
+          <xsd:element name="id" type="xsd:int"/>
+          <xsd:element name="judul" type="xsd:string"/>
+          <xsd:element name="penulis" type="xsd:string"/>
+          <xsd:element name="penerbit" type="xsd:string"/>
+          <xsd:element name="tahunTerbit" type="xsd:int"/>
+          <xsd:element name="isbn" type="xsd:string"/>
+          <xsd:element name="stok" type="xsd:int"/>
+        </xsd:sequence>
+      </xsd:complexType>
+
+      <!-- GetAllBuku -->
+      <xsd:element name="GetAllBukuRequest">
+        <xsd:complexType><xsd:sequence/></xsd:complexType>
+      </xsd:element>
+      <xsd:element name="GetAllBukuResponse">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="buku" type="tns:Buku" minOccurs="0" maxOccurs="unbounded"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+
+      <!-- GetBukuById -->
+      <xsd:element name="GetBukuByIdRequest">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="id" type="xsd:int"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="GetBukuByIdResponse">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="buku" type="tns:Buku"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+
+      <!-- CreateBuku -->
+      <xsd:element name="CreateBukuRequest">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="judul" type="xsd:string"/>
+            <xsd:element name="penulis" type="xsd:string"/>
+            <xsd:element name="penerbit" type="xsd:string"/>
+            <xsd:element name="tahunTerbit" type="xsd:int"/>
+            <xsd:element name="isbn" type="xsd:string"/>
+            <xsd:element name="stok" type="xsd:int"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="CreateBukuResponse">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="pesan" type="xsd:string"/>
+            <xsd:element name="buku" type="tns:Buku"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+
+      <!-- UpdateBuku (field selain id bersifat opsional) -->
+      <xsd:element name="UpdateBukuRequest">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="id" type="xsd:int"/>
+            <xsd:element name="judul" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="penulis" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="penerbit" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="tahunTerbit" type="xsd:int" minOccurs="0"/>
+            <xsd:element name="isbn" type="xsd:string" minOccurs="0"/>
+            <xsd:element name="stok" type="xsd:int" minOccurs="0"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="UpdateBukuResponse">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="pesan" type="xsd:string"/>
+            <xsd:element name="buku" type="tns:Buku"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+
+      <!-- DeleteBuku -->
+      <xsd:element name="DeleteBukuRequest">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="id" type="xsd:int"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="DeleteBukuResponse">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:element name="pesan" type="xsd:string"/>
+            <xsd:element name="buku" type="tns:Buku"/>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+
+    </xsd:schema>
+  </types>
+
+  <!-- ===================== MESSAGES ===================== -->
+  <message name="GetAllBukuInput"><part name="parameters" element="tns:GetAllBukuRequest"/></message>
+  <message name="GetAllBukuOutput"><part name="parameters" element="tns:GetAllBukuResponse"/></message>
+  <message name="GetBukuByIdInput"><part name="parameters" element="tns:GetBukuByIdRequest"/></message>
+  <message name="GetBukuByIdOutput"><part name="parameters" element="tns:GetBukuByIdResponse"/></message>
+  <message name="CreateBukuInput"><part name="parameters" element="tns:CreateBukuRequest"/></message>
+  <message name="CreateBukuOutput"><part name="parameters" element="tns:CreateBukuResponse"/></message>
+  <message name="UpdateBukuInput"><part name="parameters" element="tns:UpdateBukuRequest"/></message>
+  <message name="UpdateBukuOutput"><part name="parameters" element="tns:UpdateBukuResponse"/></message>
+  <message name="DeleteBukuInput"><part name="parameters" element="tns:DeleteBukuRequest"/></message>
+  <message name="DeleteBukuOutput"><part name="parameters" element="tns:DeleteBukuResponse"/></message>
+
+  <!-- ===================== PORT TYPE (daftar operasi) ===================== -->
+  <portType name="PerpustakaanPortType">
+    <operation name="GetAllBuku">
+      <input message="tns:GetAllBukuInput"/>
+      <output message="tns:GetAllBukuOutput"/>
+    </operation>
+    <operation name="GetBukuById">
+      <input message="tns:GetBukuByIdInput"/>
+      <output message="tns:GetBukuByIdOutput"/>
+    </operation>
+    <operation name="CreateBuku">
+      <input message="tns:CreateBukuInput"/>
+      <output message="tns:CreateBukuOutput"/>
+    </operation>
+    <operation name="UpdateBuku">
+      <input message="tns:UpdateBukuInput"/>
+      <output message="tns:UpdateBukuOutput"/>
+    </operation>
+    <operation name="DeleteBuku">
+      <input message="tns:DeleteBukuInput"/>
+      <output message="tns:DeleteBukuOutput"/>
+    </operation>
+  </portType>
+
+  <!-- ===================== BINDING (SOAP 1.1, document/literal) ===================== -->
+  <binding name="PerpustakaanBinding" type="tns:PerpustakaanPortType">
+    <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <operation name="GetAllBuku">
+      <soap:operation soapAction="http://perpustakaan.example.com/buku/GetAllBuku"/>
+      <input><soap:body use="literal"/></input>
+      <output><soap:body use="literal"/></output>
+    </operation>
+    <operation name="GetBukuById">
+      <soap:operation soapAction="http://perpustakaan.example.com/buku/GetBukuById"/>
+      <input><soap:body use="literal"/></input>
+      <output><soap:body use="literal"/></output>
+    </operation>
+    <operation name="CreateBuku">
+      <soap:operation soapAction="http://perpustakaan.example.com/buku/CreateBuku"/>
+      <input><soap:body use="literal"/></input>
+      <output><soap:body use="literal"/></output>
+    </operation>
+    <operation name="UpdateBuku">
+      <soap:operation soapAction="http://perpustakaan.example.com/buku/UpdateBuku"/>
+      <input><soap:body use="literal"/></input>
+      <output><soap:body use="literal"/></output>
+    </operation>
+    <operation name="DeleteBuku">
+      <soap:operation soapAction="http://perpustakaan.example.com/buku/DeleteBuku"/>
+      <input><soap:body use="literal"/></input>
+      <output><soap:body use="literal"/></output>
+    </operation>
+  </binding>
+
+  <!-- ===================== SERVICE (alamat endpoint) ===================== -->
+  <service name="PerpustakaanService">
+    <port name="PerpustakaanPort" binding="tns:PerpustakaanBinding">
+      <soap:address location="http://localhost:8000/soap/perpustakaan"/>
+    </port>
+  </service>
+</definitions>

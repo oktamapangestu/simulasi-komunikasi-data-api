@@ -1,0 +1,45 @@
+# Skema GraphQL - kontrak antara client dan server.
+# Client bebas memilih field mana saja yang ingin diambil.
+
+type Buku {
+  id: Int!
+  judul: String!
+  penulis: String!
+  penerbit: String!
+  tahunTerbit: Int!
+  isbn: String!
+  stok: Int!
+}
+
+# Input untuk menambah buku (semua field wajib)
+input BukuInput {
+  judul: String!
+  penulis: String!
+  penerbit: String!
+  tahunTerbit: Int!
+  isbn: String!
+  stok: Int!
+}
+
+# Input untuk mengubah buku (kirim hanya field yang ingin diubah)
+input UbahBukuInput {
+  judul: String
+  penulis: String
+  penerbit: String
+  tahunTerbit: Int
+  isbn: String
+  stok: Int
+}
+
+# READ
+type Query {
+  semuaBuku: [Buku!]!
+  buku(id: Int!): Buku
+}
+
+# CREATE, UPDATE, DELETE
+type Mutation {
+  tambahBuku(input: BukuInput!): Buku!
+  ubahBuku(id: Int!, input: UbahBukuInput!): Buku!
+  hapusBuku(id: Int!): Buku!
+}

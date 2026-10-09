@@ -1,0 +1,351 @@
+<title>Simulasi Komunikasi Data</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: ruang kontrol jaringan. Layar simulasi besar di kiri, daftar langkah seperti
+     bab video di kanan, tabel perbandingan di bawah. Satu tema gelap mengikuti video. */
+  :root {
+    --bg: #070c18;
+    --surface: #0e1628;
+    --surface-2: #131d33;
+    --line: #22304b;
+    --fg: #e6edf7;
+    --muted: #8ea3c2;
+    --dim: #5b6f90;
+    --accent: #38bdf8;
+    --accent-ink: #04111d;
+    --display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+    --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font: 400 15px/1.55 var(--body); }
+  .wrap { max-width: 1480px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 40px); padding-block: 28px 48px; display: grid; gap: 22px; }
+
+  header.top { display: grid; gap: 6px; }
+  .eyebrow { margin: 0; font: 600 12px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); transition: color .3s; }
+  h1 { margin: 0; font: 700 clamp(30px, 4.4vw, 52px)/1.02 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--muted); max-width: 68ch; font-size: 16px; }
+
+  /* Tab protokol */
+  .tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .tab { appearance: none; text-align: left; cursor: pointer; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 11px; display: grid; gap: 2px; font: inherit; transition: border-color .2s, background .2s; min-width: 0; }
+  .tab:hover { border-color: var(--dim); }
+  .tab .n { font: 600 11px var(--mono); color: var(--dim); }
+  .tab .nama { font: 700 19px/1.15 var(--display); }
+  .tab .spek { font: 500 12px/1.3 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tab[aria-selected="true"] { border-color: var(--tab-accent); background: color-mix(in srgb, var(--tab-accent) 12%, var(--surface)); }
+  .tab[aria-selected="true"] .n { color: var(--tab-accent); }
+  .tab:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, .bab button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Pemutar + daftar langkah */
+  .utama { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+  .player { display: grid; gap: 10px; min-width: 0; }
+  .stage { position: relative; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #0a1020; }
+  .stage canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; cursor: pointer; }
+  .stage:fullscreen { border: 0; border-radius: 0; display: grid; place-items: center; background: #0a1020; }
+  .stage:fullscreen canvas { width: min(100vw, calc(100vh * 16 / 9)); }
+
+  .kontrol { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  .kontrol button, .kontrol select { appearance: none; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; height: 36px; padding: 0 12px; font: 600 13px var(--body); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .kontrol button:hover, .kontrol select:hover { border-color: var(--dim); }
+  .kontrol button.utama-btn { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 92px; justify-content: center; }
+  .kontrol svg { width: 14px; height: 14px; fill: currentColor; }
+  .garis-waktu { position: relative; flex: 1 1 220px; min-width: 160px; height: 36px; display: flex; align-items: center; }
+  .garis-waktu input { width: 100%; margin: 0; accent-color: var(--accent); position: relative; z-index: 1; background: transparent; }
+  .tanda { position: absolute; inset: 0; pointer-events: none; }
+  .tanda i { position: absolute; top: 50%; width: 2px; height: 12px; margin-top: -6px; background: var(--dim); border-radius: 1px; }
+  .waktu { font: 500 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 92px; text-align: center; }
+  .kontrol select { padding-right: 10px; }
+
+  .bab { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
+  .bab h2 { margin: 0; font: 700 13px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .bab ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .bab li button { width: 100%; appearance: none; text-align: left; background: transparent; color: var(--fg); border: 1px solid transparent; border-radius: 8px; padding: 8px 10px; cursor: pointer; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font: inherit; }
+  .bab li button:hover { background: var(--surface-2); }
+  .bab li .no { font: 600 12px var(--mono); color: var(--dim); }
+  .bab li .judul { font-size: 14px; line-height: 1.35; }
+  .bab li .ts { font: 500 12px var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+  .bab li.lewat .no { color: var(--muted); }
+  .bab li.aktif button { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+  .bab li.aktif .no, .bab li.aktif .ts { color: var(--accent); }
+  .kode { margin: 0; padding-top: 10px; border-top: 1px solid var(--line); font: 500 12px/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .kode b { color: var(--fg); font-weight: 600; }
+
+  .legenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 500 12px var(--mono); color: var(--muted); }
+  .legenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .legenda i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* Tabel perbandingan */
+  .banding { display: grid; gap: 12px; }
+  .banding h2 { margin: 0; font: 700 26px/1.1 var(--display); }
+  .banding p { margin: 0; color: var(--muted); max-width: 70ch; }
+  .tabel { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 860px; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td, tr:last-child th { border-bottom: 0; }
+  thead th { font: 700 15px var(--display); color: var(--fg); background: var(--surface-2); }
+  tbody th { font: 600 12px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+  td { color: #c6d2e4; }
+  td code { font: 500 13px var(--mono); color: var(--fg); }
+  th.on, td.on { background: color-mix(in srgb, var(--accent) 11%, transparent); color: var(--fg); }
+  thead th.on { color: var(--accent); }
+
+  footer { color: var(--dim); font: 500 12px var(--mono); display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  kbd { font: 600 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; color: var(--muted); }
+
+  @media (max-width: 1100px) {
+    .utama { grid-template-columns: minmax(0, 1fr); }
+  }
+  .petunjuk { display: none; margin: 0; font: 500 12px var(--mono); color: var(--muted); }
+  @media (max-width: 760px) {
+    .tabs { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(118px, 1fr); overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; }
+    .tab { scroll-snap-align: start; }
+    .tab .spek { display: none; }
+    .waktu { min-width: 0; }
+    .petunjuk { display: block; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">Komunikasi Data · CRUD buku perpustakaan</p>
+    <h1>Simulasi Komunikasi Data</h1>
+    <p class="lede">Satu studi kasus yang sama, yaitu menambah, membaca, mengubah, dan menghapus buku, dijalankan di lima protokol. Ikuti paket yang bergerak di jaringan, isi pesan mentahnya, dan perubahan data di server.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Pilih protokol" id="tabs"></nav>
+
+  <div class="utama">
+    <section class="player" aria-label="Pemutar simulasi">
+      <div class="stage" id="stage">
+        <canvas id="layar" width="1920" height="1080" role="img" aria-label="Animasi simulasi komunikasi data"></canvas>
+      </div>
+      <div class="kontrol">
+        <button type="button" id="mundur" aria-label="Langkah sebelumnya"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+        <button type="button" id="putar" class="utama-btn"></button>
+        <button type="button" id="maju" aria-label="Langkah berikutnya"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
+        <div class="garis-waktu">
+          <div class="tanda" id="tanda"></div>
+          <input id="geser" type="range" min="0" max="1000" value="0" step="1" aria-label="Posisi waktu">
+        </div>
+        <span class="waktu" id="waktu">0:00 / 0:00</span>
+        <select id="kecepatan" aria-label="Kecepatan">
+          <option value="0.5">0.5×</option>
+          <option value="0.75">0.75×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.5">1.5×</option>
+          <option value="2">2×</option>
+        </select>
+        <button type="button" id="penuh" aria-label="Layar penuh"><svg viewBox="0 0 16 16"><path d="M1 1h5v2H3v3H1zM10 1h5v5h-2V3h-3zM1 10h2v3h3v2H1zM13 10h2v5h-5v-2h3z"/></svg></button>
+      </div>
+      <p class="petunjuk">Teks di layar kecil: putar HP ke mode landscape atau tekan tombol layar penuh.</p>
+      <div class="legenda" aria-label="Arti warna paket">
+        <span><i style="background:#38bdf8"></i>request</span>
+        <span><i style="background:#4ade80"></i>response</span>
+        <span><i style="background:#f87171"></i>error</span>
+        <span><i style="background:#c084fc"></i>server push</span>
+        <span><i style="background:#94a3b8"></i>kontrol koneksi</span>
+      </div>
+    </section>
+
+    <aside class="bab" aria-label="Daftar langkah">
+      <h2>Langkah</h2>
+      <ol id="daftar"></ol>
+      <p class="kode" id="kode"></p>
+    </aside>
+  </div>
+
+  <section class="banding" aria-labelledby="judul-banding">
+    <h2 id="judul-banding">Perbandingan singkat</h2>
+    <p>Kolom protokol yang sedang diputar ikut tersorot.</p>
+    <div class="tabel">
+      <table>
+        <thead>
+          <tr><th scope="col"></th><th scope="col" data-p="rest">REST</th><th scope="col" data-p="soap">SOAP</th><th scope="col" data-p="graphql">GraphQL</th><th scope="col" data-p="grpc">gRPC</th><th scope="col" data-p="websocket">WebSocket</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Format data</th><td>JSON</td><td>XML</td><td>JSON</td><td>Protobuf (biner)</td><td>JSON (bebas)</td></tr>
+          <tr><th scope="row">Transport</th><td>HTTP/1.1</td><td>HTTP/1.1</td><td>HTTP/1.1</td><td>HTTP/2</td><td>TCP, diawali HTTP Upgrade</td></tr>
+          <tr><th scope="row">Endpoint</th><td>Banyak URL, per resource</td><td>1 URL</td><td>1 URL</td><td>1 alamat, banyak method</td><td>1 koneksi</td></tr>
+          <tr><th scope="row">Penentu operasi</th><td>HTTP method + URL</td><td>Elemen di SOAP Body + <code>SOAPAction</code></td><td><code>query</code> / <code>mutation</code></td><td>Nama RPC di <code>:path</code></td><td>Field <code>aksi</code> di pesan</td></tr>
+          <tr><th scope="row">Kontrak</th><td>Opsional (OpenAPI)</td><td>WSDL</td><td>Skema GraphQL</td><td>File <code>.proto</code></td><td>Dirancang sendiri</td></tr>
+          <tr><th scope="row">Penanda error</th><td>Status HTTP (400, 404)</td><td><code>soap:Fault</code>, HTTP 500</td><td>Array <code>errors</code>, HTTP 200</td><td>Trailer <code>grpc-status</code></td><td><code>status: "gagal"</code></td></tr>
+          <tr><th scope="row">Arah</th><td>Client → server</td><td>Client → server</td><td>Client → server</td><td>Client → server, bisa streaming</td><td>Dua arah, server bisa push</td></tr>
+          <tr><th scope="row">Ukuran contoh*</th><td>130 byte</td><td>434 byte</td><td>236 byte</td><td>66 byte</td><td>169 byte</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px">* Body request untuk menambah buku "Ronggeng Dukuh Paruk" di masing-masing contoh kode.</p>
+  </section>
+
+  <footer>
+    <span><kbd>Spasi</kbd> putar / jeda</span>
+    <span><kbd>←</kbd> <kbd>→</kbd> langkah sebelumnya / berikutnya</span>
+    <span><kbd>F</kbd> layar penuh</span>
+    <span>Klik layar untuk putar / jeda</span>
+  </footer>
+</div>
+
+<!-- SCRIPTS -->
+
+<script>
+  (function () {
+    SIM.fonts({
+      sans: '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif',
+      mono: '"IBM Plex Mono", Menlo, Consolas, monospace',
+    });
+
+    const NAMA = { rest: 'REST', soap: 'SOAP', graphql: 'GraphQL', grpc: 'gRPC', websocket: 'WebSocket' };
+    const KODE = {
+      rest: ['REST_API/server.js'],
+      soap: ['SOAP_API/server.js', 'SOAP_API/perpustakaan.wsdl'],
+      graphql: ['GraphQL_API/server.js', 'GraphQL_API/schema.graphql'],
+      grpc: ['gRPC_API/server.js', 'gRPC_API/perpustakaan.proto'],
+      websocket: ['WebSocket_API/server.js', 'WebSocket_API/index.html'],
+    };
+    const IKON_PUTAR = '<svg viewBox="0 0 16 16"><path d="M3 1.5v13L14 8z"/></svg>Putar';
+    const IKON_JEDA = '<svg viewBox="0 0 16 16"><path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/></svg>Jeda';
+
+    const $ = (id) => document.getElementById(id);
+    const canvas = $('layar');
+    const ctx = canvas.getContext('2d');
+    const kurangGerak = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let aktif = SIM.order[0];
+    let t = 0;
+    let main = !kurangGerak;
+    let kecepatan = 1;
+    let sebelum = performance.now();
+    let bab = [];
+    let babAktif = -1;
+
+    const fmt = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
+
+    // Bab = pengantar + setiap langkah + ringkasan
+    function susunBab(id) {
+      const sc = SIM.scenes[id];
+      const intro = sc.overlays.find((o) => o.kind === 'intro');
+      const outro = sc.overlays.find((o) => o.kind === 'outro');
+      return [
+        { judul: 'Pengantar', at: intro ? intro.at : 0, no: '·' },
+        ...sc.steps.map((s, i) => ({ judul: s.title, at: s.at, no: String(i + 1) })),
+        ...(outro ? [{ judul: 'Ringkasan', at: outro.at + 0.01, no: '·' }] : []),
+      ];
+    }
+
+    for (const [i, id] of SIM.order.entries()) {
+      const sc = SIM.scenes[id];
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tab';
+      b.setAttribute('role', 'tab');
+      b.dataset.id = id;
+      b.style.setProperty('--tab-accent', sc.cfg.accent);
+      b.innerHTML = `<span class="n">0${i + 1}</span><span class="nama">${NAMA[id] || id}</span><span class="spek">${sc.cfg.chips.slice(0, 3).join(' · ')}</span>`;
+      b.addEventListener('click', () => pilih(id, true));
+      $('tabs').appendChild(b);
+    }
+
+    function setMain(v) {
+      main = v;
+      $('putar').innerHTML = main ? IKON_JEDA : IKON_PUTAR;
+      $('putar').setAttribute('aria-label', main ? 'Jeda' : 'Putar');
+    }
+
+    function pilih(id, mulai) {
+      aktif = id;
+      t = 0;
+      const sc = SIM.scenes[id];
+      const d = sc.duration;
+      document.documentElement.style.setProperty('--accent', sc.cfg.accent);
+      for (const b of $('tabs').children) b.setAttribute('aria-selected', String(b.dataset.id === id));
+
+      bab = susunBab(id);
+      babAktif = -1;
+      $('daftar').innerHTML = '';
+      bab.forEach((x, i) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<button type="button"><span class="no">${x.no}</span><span class="judul"></span><span class="ts">${fmt(x.at)}</span></button>`;
+        li.querySelector('.judul').textContent = x.judul;
+        li.querySelector('button').addEventListener('click', () => lompat(i));
+        $('daftar').appendChild(li);
+      });
+      $('tanda').innerHTML = bab.slice(1).map((x) => `<i style="left:calc(${(x.at / d) * 100}% - 1px)"></i>`).join('');
+      $('kode').innerHTML = 'Kode sumber: ' + KODE[id].map((k) => `<b>${k}</b>`).join(', ');
+      for (const el of document.querySelectorAll('[data-p], td, th')) el.classList.remove('on');
+      const kol = [...document.querySelectorAll('thead th')].findIndex((th) => th.dataset.p === id);
+      for (const tr of document.querySelectorAll('table tr')) tr.children[kol] && tr.children[kol].classList.add('on');
+      try { history.replaceState(null, '', `#${id}`); } catch (e) { /* abaikan */ }
+      if (mulai !== undefined) setMain(mulai && !kurangGerak);
+    }
+
+    function lompat(i) {
+      if (!bab[i]) return;
+      t = bab[i].at + 0.01;
+      sebelum = performance.now();
+      setMain(true);
+    }
+
+    function indeksBab() {
+      let k = 0;
+      bab.forEach((x, i) => { if (x.at <= t + 0.02) k = i; });
+      return k;
+    }
+
+    $('putar').addEventListener('click', () => {
+      if (t >= SIM.duration(aktif)) t = 0;
+      setMain(!main);
+    });
+    canvas.addEventListener('click', () => $('putar').click());
+    $('mundur').addEventListener('click', () => {
+      const k = indeksBab();
+      // Jika baru mulai di langkah ini, mundur ke langkah sebelumnya
+      lompat(t - bab[k].at < 1.5 ? Math.max(0, k - 1) : k);
+    });
+    $('maju').addEventListener('click', () => lompat(Math.min(bab.length - 1, indeksBab() + 1)));
+    $('kecepatan').addEventListener('change', (e) => (kecepatan = Number(e.target.value)));
+    $('geser').addEventListener('input', (e) => (t = (e.target.value / 1000) * SIM.duration(aktif)));
+    $('penuh').addEventListener('click', () => {
+      const st = $('stage');
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      else if (st.requestFullscreen) st.requestFullscreen().catch(() => {});
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.target.closest('select, input')) return;
+      if (e.code === 'Space') { e.preventDefault(); $('putar').click(); }
+      if (e.code === 'ArrowRight') { e.preventDefault(); $('maju').click(); }
+      if (e.code === 'ArrowLeft') { e.preventDefault(); $('mundur').click(); }
+      if (e.code === 'KeyF') $('penuh').click();
+    });
+
+    function loop(now) {
+      const d = SIM.duration(aktif);
+      if (main) t = Math.min(d, t + ((now - sebelum) / 1000) * kecepatan);
+      if (main && t >= d) setMain(false);
+      sebelum = now;
+      SIM.render(ctx, aktif, t);
+      $('geser').value = Math.round((t / d) * 1000);
+      $('waktu').textContent = `${fmt(t)} / ${fmt(d)}`;
+      const k = indeksBab();
+      if (k !== babAktif) {
+        babAktif = k;
+        [...$('daftar').children].forEach((li, i) => {
+          li.classList.toggle('aktif', i === k);
+          li.classList.toggle('lewat', i < k);
+        });
+      }
+      requestAnimationFrame(loop);
+    }
+
+    const awal = location.hash.slice(1);
+    pilih(SIM.scenes[awal] ? awal : aktif);
+    setMain(main);
+    requestAnimationFrame(loop);
+  })();
+</script>

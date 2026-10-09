@@ -1,0 +1,11 @@
+{
+  "name": "simulasi-video-komunikasi-data",
+  "version": "1.0.0",
+  "description": "Animasi simulasi teknis REST, SOAP, GraphQL, gRPC, dan WebSocket",
+  "scripts": {
+    "rekam": "node record.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}

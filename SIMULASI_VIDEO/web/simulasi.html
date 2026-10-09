@@ -1,0 +1,2758 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Simulasi Komunikasi Data</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: ruang kontrol jaringan. Layar simulasi besar di kiri, daftar langkah seperti
+     bab video di kanan, tabel perbandingan di bawah. Satu tema gelap mengikuti video. */
+  :root {
+    --bg: #070c18;
+    --surface: #0e1628;
+    --surface-2: #131d33;
+    --line: #22304b;
+    --fg: #e6edf7;
+    --muted: #8ea3c2;
+    --dim: #5b6f90;
+    --accent: #38bdf8;
+    --accent-ink: #04111d;
+    --display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+    --body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); font: 400 15px/1.55 var(--body); }
+  .wrap { max-width: 1480px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 40px); padding-block: 28px 48px; display: grid; gap: 22px; }
+
+  header.top { display: grid; gap: 6px; }
+  .eyebrow { margin: 0; font: 600 12px/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); transition: color .3s; }
+  h1 { margin: 0; font: 700 clamp(30px, 4.4vw, 52px)/1.02 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+  .lede { margin: 0; color: var(--muted); max-width: 68ch; font-size: 16px; }
+
+  /* Tab protokol */
+  .tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+  .tab { appearance: none; text-align: left; cursor: pointer; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 11px; display: grid; gap: 2px; font: inherit; transition: border-color .2s, background .2s; min-width: 0; }
+  .tab:hover { border-color: var(--dim); }
+  .tab .n { font: 600 11px var(--mono); color: var(--dim); }
+  .tab .nama { font: 700 19px/1.15 var(--display); }
+  .tab .spek { font: 500 12px/1.3 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tab[aria-selected="true"] { border-color: var(--tab-accent); background: color-mix(in srgb, var(--tab-accent) 12%, var(--surface)); }
+  .tab[aria-selected="true"] .n { color: var(--tab-accent); }
+  .tab:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, .bab button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Pemutar + daftar langkah */
+  .utama { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+  .player { display: grid; gap: 10px; min-width: 0; }
+  .stage { position: relative; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #0a1020; }
+  .stage canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; cursor: pointer; }
+  .stage:fullscreen { border: 0; border-radius: 0; display: grid; place-items: center; background: #0a1020; }
+  .stage:fullscreen canvas { width: min(100vw, calc(100vh * 16 / 9)); }
+
+  .kontrol { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  .kontrol button, .kontrol select { appearance: none; background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; height: 36px; padding: 0 12px; font: 600 13px var(--body); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .kontrol button:hover, .kontrol select:hover { border-color: var(--dim); }
+  .kontrol button.utama-btn { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 92px; justify-content: center; }
+  .kontrol svg { width: 14px; height: 14px; fill: currentColor; }
+  .garis-waktu { position: relative; flex: 1 1 220px; min-width: 160px; height: 36px; display: flex; align-items: center; }
+  .garis-waktu input { width: 100%; margin: 0; accent-color: var(--accent); position: relative; z-index: 1; background: transparent; }
+  .tanda { position: absolute; inset: 0; pointer-events: none; }
+  .tanda i { position: absolute; top: 50%; width: 2px; height: 12px; margin-top: -6px; background: var(--dim); border-radius: 1px; }
+  .waktu { font: 500 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; min-width: 92px; text-align: center; }
+  .kontrol select { padding-right: 10px; }
+
+  .bab { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 10px; min-width: 0; }
+  .bab h2 { margin: 0; font: 700 13px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .bab ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .bab li button { width: 100%; appearance: none; text-align: left; background: transparent; color: var(--fg); border: 1px solid transparent; border-radius: 8px; padding: 8px 10px; cursor: pointer; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; font: inherit; }
+  .bab li button:hover { background: var(--surface-2); }
+  .bab li .no { font: 600 12px var(--mono); color: var(--dim); }
+  .bab li .judul { font-size: 14px; line-height: 1.35; }
+  .bab li .ts { font: 500 12px var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+  .bab li.lewat .no { color: var(--muted); }
+  .bab li.aktif button { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+  .bab li.aktif .no, .bab li.aktif .ts { color: var(--accent); }
+  .kode { margin: 0; padding-top: 10px; border-top: 1px solid var(--line); font: 500 12px/1.5 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .kode b { color: var(--fg); font-weight: 600; }
+
+  .legenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font: 500 12px var(--mono); color: var(--muted); }
+  .legenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .legenda i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  /* Tabel perbandingan */
+  .banding { display: grid; gap: 12px; }
+  .banding h2 { margin: 0; font: 700 26px/1.1 var(--display); }
+  .banding p { margin: 0; color: var(--muted); max-width: 70ch; }
+  .tabel { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 860px; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td, tr:last-child th { border-bottom: 0; }
+  thead th { font: 700 15px var(--display); color: var(--fg); background: var(--surface-2); }
+  tbody th { font: 600 12px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+  td { color: #c6d2e4; }
+  td code { font: 500 13px var(--mono); color: var(--fg); }
+  th.on, td.on { background: color-mix(in srgb, var(--accent) 11%, transparent); color: var(--fg); }
+  thead th.on { color: var(--accent); }
+
+  footer { color: var(--dim); font: 500 12px var(--mono); display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  kbd { font: 600 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 5px; color: var(--muted); }
+
+  @media (max-width: 1100px) {
+    .utama { grid-template-columns: minmax(0, 1fr); }
+  }
+  .petunjuk { display: none; margin: 0; font: 500 12px var(--mono); color: var(--muted); }
+  @media (max-width: 760px) {
+    .tabs { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(118px, 1fr); overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x proximity; }
+    .tab { scroll-snap-align: start; }
+    .tab .spek { display: none; }
+    .waktu { min-width: 0; }
+    .petunjuk { display: block; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <p class="eyebrow">Komunikasi Data · CRUD buku perpustakaan</p>
+    <h1>Simulasi Komunikasi Data</h1>
+    <p class="lede">Satu studi kasus yang sama, yaitu menambah, membaca, mengubah, dan menghapus buku, dijalankan di lima protokol. Ikuti paket yang bergerak di jaringan, isi pesan mentahnya, dan perubahan data di server.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Pilih protokol" id="tabs"></nav>
+
+  <div class="utama">
+    <section class="player" aria-label="Pemutar simulasi">
+      <div class="stage" id="stage">
+        <canvas id="layar" width="1920" height="1080" role="img" aria-label="Animasi simulasi komunikasi data"></canvas>
+      </div>
+      <div class="kontrol">
+        <button type="button" id="mundur" aria-label="Langkah sebelumnya"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+        <button type="button" id="putar" class="utama-btn"></button>
+        <button type="button" id="maju" aria-label="Langkah berikutnya"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
+        <div class="garis-waktu">
+          <div class="tanda" id="tanda"></div>
+          <input id="geser" type="range" min="0" max="1000" value="0" step="1" aria-label="Posisi waktu">
+        </div>
+        <span class="waktu" id="waktu">0:00 / 0:00</span>
+        <select id="kecepatan" aria-label="Kecepatan">
+          <option value="0.5">0.5×</option>
+          <option value="0.75">0.75×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.5">1.5×</option>
+          <option value="2">2×</option>
+        </select>
+        <button type="button" id="penuh" aria-label="Layar penuh"><svg viewBox="0 0 16 16"><path d="M1 1h5v2H3v3H1zM10 1h5v5h-2V3h-3zM1 10h2v3h3v2H1zM13 10h2v5h-5v-2h3z"/></svg></button>
+      </div>
+      <p class="petunjuk">Teks di layar kecil: putar HP ke mode landscape atau tekan tombol layar penuh.</p>
+      <div class="legenda" aria-label="Arti warna paket">
+        <span><i style="background:#38bdf8"></i>request</span>
+        <span><i style="background:#4ade80"></i>response</span>
+        <span><i style="background:#f87171"></i>error</span>
+        <span><i style="background:#c084fc"></i>server push</span>
+        <span><i style="background:#94a3b8"></i>kontrol koneksi</span>
+      </div>
+    </section>
+
+    <aside class="bab" aria-label="Daftar langkah">
+      <h2>Langkah</h2>
+      <ol id="daftar"></ol>
+      <p class="kode" id="kode"></p>
+    </aside>
+  </div>
+
+  <section class="banding" aria-labelledby="judul-banding">
+    <h2 id="judul-banding">Perbandingan singkat</h2>
+    <p>Kolom protokol yang sedang diputar ikut tersorot.</p>
+    <div class="tabel">
+      <table>
+        <thead>
+          <tr><th scope="col"></th><th scope="col" data-p="rest">REST</th><th scope="col" data-p="soap">SOAP</th><th scope="col" data-p="graphql">GraphQL</th><th scope="col" data-p="grpc">gRPC</th><th scope="col" data-p="websocket">WebSocket</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Format data</th><td>JSON</td><td>XML</td><td>JSON</td><td>Protobuf (biner)</td><td>JSON (bebas)</td></tr>
+          <tr><th scope="row">Transport</th><td>HTTP/1.1</td><td>HTTP/1.1</td><td>HTTP/1.1</td><td>HTTP/2</td><td>TCP, diawali HTTP Upgrade</td></tr>
+          <tr><th scope="row">Endpoint</th><td>Banyak URL, per resource</td><td>1 URL</td><td>1 URL</td><td>1 alamat, banyak method</td><td>1 koneksi</td></tr>
+          <tr><th scope="row">Penentu operasi</th><td>HTTP method + URL</td><td>Elemen di SOAP Body + <code>SOAPAction</code></td><td><code>query</code> / <code>mutation</code></td><td>Nama RPC di <code>:path</code></td><td>Field <code>aksi</code> di pesan</td></tr>
+          <tr><th scope="row">Kontrak</th><td>Opsional (OpenAPI)</td><td>WSDL</td><td>Skema GraphQL</td><td>File <code>.proto</code></td><td>Dirancang sendiri</td></tr>
+          <tr><th scope="row">Penanda error</th><td>Status HTTP (400, 404)</td><td><code>soap:Fault</code>, HTTP 500</td><td>Array <code>errors</code>, HTTP 200</td><td>Trailer <code>grpc-status</code></td><td><code>status: "gagal"</code></td></tr>
+          <tr><th scope="row">Arah</th><td>Client → server</td><td>Client → server</td><td>Client → server</td><td>Client → server, bisa streaming</td><td>Dua arah, server bisa push</td></tr>
+          <tr><th scope="row">Ukuran contoh*</th><td>130 byte</td><td>434 byte</td><td>236 byte</td><td>66 byte</td><td>169 byte</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:13px">* Body request untuk menambah buku "Ronggeng Dukuh Paruk" di masing-masing contoh kode.</p>
+  </section>
+
+  <footer>
+    <span><kbd>Spasi</kbd> putar / jeda</span>
+    <span><kbd>←</kbd> <kbd>→</kbd> langkah sebelumnya / berikutnya</span>
+    <span><kbd>F</kbd> layar penuh</span>
+    <span>Klik layar untuk putar / jeda</span>
+  </footer>
+</div>
+
+<script>
+/* engine.js */
+// Mesin animasi simulasi komunikasi data.
+// Setiap skenario ditulis sebagai timeline (Script). Fungsi render(t) menggambar
+// keadaan PERSIS pada detik ke-t, sehingga video bisa dirender frame demi frame
+// secara deterministik (dipakai oleh record.js) maupun diputar langsung di browser.
+
+(function () {
+  'use strict';
+
+  const W = 1920;
+  const H = 1080;
+  // Bisa diganti lewat SIM.fonts() (versi web memakai IBM Plex dari Google Fonts)
+  let SANS = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+  let MONO = 'Menlo, Monaco, Consolas, "Courier New", monospace';
+
+  const C = {
+    bg: '#0a1020',
+    panel: '#111a2e',
+    panel2: '#0d1527',
+    border: '#24324f',
+    text: '#e6edf7',
+    muted: '#8ea3c2',
+    dim: '#4f6385',
+    req: '#38bdf8',
+    res: '#4ade80',
+    err: '#f87171',
+    push: '#c084fc',
+    warn: '#fbbf24',
+    pink: '#f472b6',
+    net: '#94a3b8',
+  };
+  const KIND = { req: C.req, res: C.res, err: C.err, push: C.push, info: C.warn, net: C.net };
+
+  const BUKU = [
+    { id: 1, judul: 'Laskar Pelangi', penulis: 'Andrea Hirata', stok: 5 },
+    { id: 2, judul: 'Bumi Manusia', penulis: 'Pramoedya Ananta Toer', stok: 3 },
+    { id: 3, judul: 'Negeri 5 Menara', penulis: 'Ahmad Fuadi', stok: 4 },
+  ];
+  const BUKU_BARU = { id: 4, judul: 'Ronggeng Dukuh Paruk', penulis: 'Ahmad Tohari', stok: 2 };
+
+  // ---------------------------------------------------------------- utilitas
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const ease = (x) => {
+    x = clamp(x);
+    return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+  };
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+
+  function rgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+  }
+
+  function rr(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+  }
+
+  function wrap(ctx, text, maxW) {
+    const out = [];
+    for (const para of String(text).split('\n')) {
+      let line = '';
+      for (const word of para.split(' ')) {
+        const test = line ? `${line} ${word}` : word;
+        if (line && ctx.measureText(test).width > maxW) {
+          out.push(line);
+          line = word;
+        } else line = test;
+      }
+      out.push(line);
+    }
+    return out;
+  }
+
+  function ellipsis(ctx, text, maxW) {
+    text = String(text);
+    if (ctx.measureText(text).width <= maxW) return text;
+    while (text.length > 1 && ctx.measureText(`${text}…`).width > maxW) text = text.slice(0, -1);
+    return `${text}…`;
+  }
+
+  // ---------------------------------------------------------------- Script (timeline)
+  class Script {
+    constructor(cfg) {
+      this.cfg = cfg;
+      this.t = 0;
+      this.events = [];
+      this.packets = [];
+      this.steps = [];
+      this.inspects = [];
+      this.procs = [];
+      this.overlays = [];
+    }
+
+    get duration() {
+      return this.t;
+    }
+
+    wait(d) {
+      this.t += d;
+      return this;
+    }
+
+    on(fn) {
+      this.events.push({ at: this.t, fn });
+      return this;
+    }
+
+    intro(content, dur = 6) {
+      this.overlays.push({ at: this.t, dur, kind: 'intro', content });
+      this.t += dur;
+      return this;
+    }
+
+    outro(content, dur = 9) {
+      this.overlays.push({ at: this.t, dur, kind: 'outro', content });
+      this.t += dur;
+      return this;
+    }
+
+    step(title, text) {
+      this.steps.push({ at: this.t, title, text });
+      return this;
+    }
+
+    inspect(d) {
+      this.inspects.push({ at: this.t, ...d });
+      return this;
+    }
+
+    // Paket yang bergerak di sebuah link. dir: 'fwd' (from → to) / 'back'
+    packet({ link = 'net', dir = 'fwd', label, kind = 'req', dur = 1.7, sub, inspect, parallel = false }) {
+      if (inspect) this.inspect({ kind, ...inspect });
+      this.packets.push({ at: this.t, dur, link, dir, label, kind, sub });
+      if (!parallel) this.t += dur;
+      return this;
+    }
+
+    process(node, label, dur = 1.3, kind = 'info', parallel = false) {
+      this.procs.push({ at: this.t, dur, node, label, kind });
+      if (!parallel) this.t += dur;
+      return this;
+    }
+
+    // ----- perubahan state (terjadi pada waktu kursor saat ini)
+    addRow(table, row) {
+      return this.on((s, at) => s.tables[table].push({ ...row, _born: at }));
+    }
+    setRows(table, rows) {
+      return this.on((s, at) => {
+        s.tables[table] = rows.map((r) => ({ ...r, _born: at }));
+      });
+    }
+    updateRow(table, id, patch, kind = 'warn') {
+      return this.on((s, at) => {
+        const r = s.tables[table].find((x) => x.id === id);
+        if (r) Object.assign(r, patch, { _flash: { at, kind } });
+      });
+    }
+    removeRow(table, id) {
+      return this.on((s, at) => {
+        const r = s.tables[table].find((x) => x.id === id);
+        if (r) r._dying = at;
+      });
+    }
+    flash(table, kind = 'res', ids = null) {
+      return this.on((s, at) => {
+        for (const r of s.tables[table]) if (!ids || ids.includes(r.id)) r._flash = { at, kind };
+      });
+    }
+    log(node, text, kind = 'req') {
+      return this.on((s, at) => (s.logs[node] = s.logs[node] || []).push({ text, kind, at }));
+    }
+    openLink(id, label) {
+      return this.on((s, at) => (s.links[id] = { open: true, label, at }));
+    }
+    closeLink(id, label) {
+      return this.on((s, at) => (s.links[id] = { open: false, label, at }));
+    }
+    extra(node, extra) {
+      return this.on((s, at) => {
+        s.nodes[node] = s.nodes[node] || {};
+        s.nodes[node].extra = extra ? { ...extra, at } : null;
+      });
+    }
+    activate(node, idx, kind = 'req') {
+      return this.on((s, at) => {
+        s.nodes[node] = s.nodes[node] || {};
+        s.nodes[node].active = { idx, at, kind };
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- state
+  function computeState(sc, t) {
+    const cfg = sc.cfg;
+    const s = {
+      tables: clone(cfg.tables || {}),
+      logs: {},
+      links: clone(cfg.linkState || {}),
+      nodes: clone(cfg.nodeState || {}),
+    };
+    for (const ev of sc.events) if (ev.at <= t) ev.fn(s, ev.at, t);
+    return s;
+  }
+
+  const lastAt = (arr, t) => {
+    let found = null;
+    for (const x of arr) if (x.at <= t) found = x;
+    return found;
+  };
+
+  // ---------------------------------------------------------------- geometri
+  const nodeById = (cfg, id) => cfg.nodes.find((n) => n.id === id);
+
+  function linkPts(cfg, link) {
+    const a = nodeById(cfg, link.from);
+    const b = nodeById(cfg, link.to);
+    return [
+      { x: a.x + a.w, y: a.y + a.h / 2 + (link.ay || 0) },
+      { x: b.x, y: b.y + b.h / 2 + (link.by || 0) },
+    ];
+  }
+
+  // ---------------------------------------------------------------- gambar: latar & header
+  function drawBackground(ctx) {
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+    const g = ctx.createRadialGradient(W / 2, 380, 50, W / 2, 380, 1100);
+    g.addColorStop(0, 'rgba(56,189,248,0.07)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(148,163,184,0.07)';
+    for (let x = 40; x < W; x += 40) for (let y = 40; y < H; y += 40) ctx.fillRect(x, y, 2, 2);
+  }
+
+  function drawChipRow(ctx, items, x, y, opts = {}) {
+    const { font = `600 20px ${SANS}`, h = 36, pad = 16, gap = 10, color = C.muted, fill = C.panel } = opts;
+    ctx.font = font;
+    for (const it of items) {
+      const w = ctx.measureText(it).width + pad * 2;
+      rr(ctx, x, y, w, h, h / 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.strokeStyle = rgba(color, 0.55);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(it, x + pad, y + h / 2 + 1);
+      x += w + gap;
+    }
+    ctx.textBaseline = 'alphabetic';
+    return x;
+  }
+
+  function drawHeader(ctx, cfg) {
+    ctx.fillStyle = cfg.accent;
+    rr(ctx, 70, 44, 8, 52, 4);
+    ctx.fill();
+    ctx.fillStyle = C.text;
+    ctx.font = `800 46px ${SANS}`;
+    ctx.fillText(cfg.title, 96, 88);
+    const x = 96 + ctx.measureText(cfg.title).width + 28;
+    drawChipRow(ctx, cfg.chips, x, 54, { color: cfg.accent });
+    ctx.font = `500 20px ${SANS}`;
+    ctx.fillStyle = C.muted;
+    ctx.textAlign = 'right';
+    ctx.fillText('Simulasi Komunikasi Data', W - 70, 66);
+    ctx.fillStyle = C.dim;
+    ctx.fillText('Studi kasus: CRUD Buku Perpustakaan', W - 70, 92);
+    ctx.textAlign = 'left';
+  }
+
+  // ---------------------------------------------------------------- gambar: ikon
+  function drawIcon(ctx, kind, x, y, color) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = rgba(color, 0.15);
+    ctx.lineWidth = 3;
+    if (kind === 'server') {
+      for (let i = 0; i < 3; i++) {
+        rr(ctx, x, y + i * 16, 42, 13, 3);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x + 34, y + i * 16 + 6.5, 2.2, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.fillStyle = rgba(color, 0.15);
+      }
+    } else {
+      rr(ctx, x + 4, y, 34, 24, 3);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - 2, y + 32);
+      ctx.lineTo(x + 44, y + 32);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------------------- gambar: node
+  function sectionTitle(ctx, text, x, y) {
+    ctx.font = `700 15px ${SANS}`;
+    ctx.fillStyle = C.dim;
+    ctx.fillText(text.toUpperCase().split('').join(' '), x, y);
+  }
+
+  function drawChips(ctx, cfg, extra, active, x, y, w, t) {
+    sectionTitle(ctx, extra.title, x, y + 12);
+    y += 24;
+    const a = clamp((t - extra.at) / 0.5);
+    ctx.font = `600 17px ${MONO}`;
+    const h = 34;
+    let cx = x;
+    let cy = y;
+    extra.items.forEach((it, i) => {
+      const cw = ctx.measureText(it).width + 24;
+      if (cx + cw > x + w) {
+        cx = x;
+        cy += h + 8;
+      }
+      let hl = 0;
+      if (active && active.idx === i) hl = 1 - clamp((t - active.at - 2.6) / 0.6);
+      const col = KIND[active && active.kind] || cfg.accent;
+      ctx.globalAlpha = a;
+      rr(ctx, cx, cy, cw, h, 8);
+      ctx.fillStyle = hl > 0 ? rgba(col, 0.12 + 0.25 * hl) : C.panel2;
+      ctx.fill();
+      ctx.strokeStyle = hl > 0 ? rgba(col, 0.4 + 0.6 * hl) : C.border;
+      ctx.lineWidth = hl > 0 ? 2 : 1.5;
+      ctx.stroke();
+      ctx.fillStyle = hl > 0 ? C.text : C.muted;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(it, cx + 12, cy + h / 2 + 1);
+      ctx.textBaseline = 'alphabetic';
+      ctx.globalAlpha = 1;
+      cx += cw + 8;
+    });
+    return extra.items.length ? cy + h : y;
+  }
+
+  function drawTable(ctx, cfg, node, rows, x, y, w, h, t) {
+    sectionTitle(ctx, node.tableTitle || 'Data buku', x, y + 12);
+    y += 24;
+    const cols = node.columns || [
+      { key: 'id', label: 'ID', w: 56 },
+      { key: 'judul', label: 'JUDUL' },
+      { key: 'stok', label: 'STOK', w: 76, align: 'right' },
+    ];
+    const fixed = cols.reduce((s, c) => s + (c.w || 0), 0);
+    const flex = cols.filter((c) => !c.w).length;
+    for (const c of cols) c._w = c.w || (w - fixed) / flex;
+
+    const headH = 32;
+    rr(ctx, x, y, w, headH, 6);
+    ctx.fillStyle = C.panel2;
+    ctx.fill();
+    ctx.font = `700 15px ${SANS}`;
+    ctx.fillStyle = C.dim;
+    let cx = x;
+    for (const c of cols) {
+      ctx.textAlign = c.align === 'right' ? 'right' : 'left';
+      ctx.fillText(c.label, c.align === 'right' ? cx + c._w - 14 : cx + 14, y + 21);
+      cx += c._w;
+    }
+    ctx.textAlign = 'left';
+    y += headH + 4;
+
+    const visible = rows.filter((r) => !(r._dying !== undefined && t - r._dying > 0.9));
+    const rowH = Math.min(node.rowH || 40, (h - headH - 28) / Math.max(4, visible.length));
+    if (!visible.length) {
+      ctx.font = `italic 18px ${SANS}`;
+      ctx.fillStyle = C.dim;
+      ctx.fillText(node.emptyText || '(belum ada data)', x + 14, y + rowH * 0.65);
+    }
+    for (const r of visible) {
+      let a = r._born !== undefined ? clamp((t - r._born) / 0.5) : 1;
+      let bg = null;
+      if (r._born !== undefined && t - r._born < 2.4) bg = rgba(C.res, 0.3 * (1 - clamp((t - r._born) / 2.4)));
+      if (r._flash && t - r._flash.at < 2.4) bg = rgba(KIND[r._flash.kind] || C.warn, 0.32 * (1 - clamp((t - r._flash.at) / 2.4)));
+      if (r._dying !== undefined) {
+        const k = clamp((t - r._dying) / 0.9);
+        a *= 1 - k;
+        bg = rgba(C.err, 0.35 * (1 - k * 0.5));
+      }
+      ctx.globalAlpha = a;
+      const slide = (1 - a) * 18;
+      if (bg) {
+        rr(ctx, x, y + 2, w, rowH - 4, 6);
+        ctx.fillStyle = bg;
+        ctx.fill();
+      }
+      ctx.font = `500 ${Math.min(19, rowH * 0.5)}px ${SANS}`;
+      ctx.fillStyle = C.text;
+      let cx2 = x + slide;
+      for (const c of cols) {
+        const v = ellipsis(ctx, r[c.key], c._w - 24);
+        ctx.textAlign = c.align === 'right' ? 'right' : 'left';
+        ctx.fillText(v, c.align === 'right' ? cx2 + c._w - 14 : cx2 + 14, y + rowH * 0.64);
+        cx2 += c._w;
+      }
+      ctx.textAlign = 'left';
+      ctx.strokeStyle = rgba(C.border, 0.7);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y + rowH);
+      ctx.lineTo(x + w, y + rowH);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      y += rowH;
+    }
+  }
+
+  function drawLogs(ctx, node, logs, x, y, w, h, t) {
+    sectionTitle(ctx, node.logTitle || 'Log client', x, y + 12);
+    y += 26;
+    rr(ctx, x, y, w, h - 26, 8);
+    ctx.fillStyle = C.panel2;
+    ctx.fill();
+    const lineH = 31;
+    const max = Math.floor((h - 40) / lineH);
+    const shown = logs.slice(-max);
+    ctx.font = `500 18px ${MONO}`;
+    shown.forEach((l, i) => {
+      ctx.globalAlpha = clamp((t - l.at) / 0.35);
+      ctx.fillStyle = KIND[l.kind] || C.text;
+      ctx.fillText(ellipsis(ctx, l.text, w - 28), x + 14, y + 28 + i * lineH);
+      ctx.globalAlpha = 1;
+    });
+    if (!shown.length) {
+      ctx.font = `italic 18px ${SANS}`;
+      ctx.fillStyle = C.dim;
+      ctx.fillText('(belum ada aktivitas)', x + 14, y + 30);
+    }
+  }
+
+  function drawStatus(ctx, node, proc, x, y, w, h, t, accent) {
+    if (proc) {
+      const col = KIND[proc.kind] || C.warn;
+      rr(ctx, x, y, w, h, 8);
+      ctx.fillStyle = rgba(col, 0.16);
+      ctx.fill();
+      ctx.strokeStyle = rgba(col, 0.6);
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      const a0 = t * 7;
+      ctx.arc(x + 22, y + h / 2, 9, a0, a0 + Math.PI * 1.4);
+      ctx.stroke();
+      ctx.font = `600 18px ${MONO}`;
+      ctx.fillStyle = C.text;
+      ctx.fillText(ellipsis(ctx, proc.label, w - 56), x + 42, y + h / 2 + 6);
+    } else {
+      ctx.fillStyle = rgba(C.res, 0.85);
+      ctx.beginPath();
+      ctx.arc(x + 14, y + h / 2, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = `500 17px ${SANS}`;
+      ctx.fillStyle = C.dim;
+      ctx.fillText(node.idle || 'siap', x + 28, y + h / 2 + 6);
+    }
+  }
+
+  function drawNode(ctx, sc, node, s, t) {
+    const cfg = sc.cfg;
+    const st = s.nodes[node.id] || {};
+    const proc = sc.procs.find((p) => p.node === node.id && t >= p.at && t < p.at + p.dur);
+    const { x, y, w, h } = node;
+
+    ctx.save();
+    ctx.shadowColor = proc ? rgba(KIND[proc.kind] || C.warn, 0.45) : 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = proc ? 30 : 24;
+    rr(ctx, x, y, w, h, 18);
+    ctx.fillStyle = C.panel;
+    ctx.fill();
+    ctx.restore();
+    rr(ctx, x, y, w, h, 18);
+    ctx.strokeStyle = proc ? rgba(KIND[proc.kind] || C.warn, 0.8) : C.border;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    let cy;
+    if (node.compact) {
+      // Header satu baris: judul + subjudul berdampingan
+      ctx.font = `700 25px ${SANS}`;
+      ctx.fillStyle = C.text;
+      ctx.fillText(node.title, x + 24, y + 42);
+      const tw = ctx.measureText(node.title).width;
+      ctx.font = `500 17px ${MONO}`;
+      ctx.fillStyle = C.muted;
+      ctx.fillText(ellipsis(ctx, node.subtitle, w - tw - 64), x + 40 + tw, y + 42);
+      cy = y + 62;
+    } else {
+      drawIcon(ctx, node.kind, x + 26, y + 26, node.kind === 'server' ? cfg.accent : C.req);
+      ctx.font = `700 27px ${SANS}`;
+      ctx.fillStyle = C.text;
+      ctx.fillText(node.title, x + 86, y + 48);
+      ctx.font = `500 17px ${MONO}`;
+      ctx.fillStyle = C.muted;
+      ctx.fillText(ellipsis(ctx, node.subtitle, w - 110), x + 86, y + 74);
+      cy = y + 96;
+    }
+    if (st.extra) cy = drawChips(ctx, cfg, st.extra, st.active, x + 24, cy, w - 48, t) + 14;
+    const bottom = y + h - (node.status ? 58 : 18);
+    if (node.table) drawTable(ctx, cfg, node, s.tables[node.table] || [], x + 24, cy, w - 48, bottom - cy, t);
+    else if (node.showLogs !== false) drawLogs(ctx, node, s.logs[node.id] || [], x + 24, cy, w - 48, bottom - cy, t);
+    if (node.status) drawStatus(ctx, node, proc, x + 20, y + h - 50, w - 40, 36, t, cfg.accent);
+  }
+
+  // ---------------------------------------------------------------- gambar: link & paket
+  function drawLink(ctx, sc, link, s, t) {
+    const cfg = sc.cfg;
+    const st = s.links[link.id] || {};
+    const [A, B] = linkPts(cfg, link);
+    const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+    const ang = Math.atan2(B.y - A.y, B.x - A.x);
+
+    if (!st.open) {
+      ctx.save();
+      ctx.setLineDash([10, 12]);
+      ctx.strokeStyle = rgba(C.dim, 0.8);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(A.x, A.y);
+      ctx.lineTo(B.x, B.y);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      const k = ease((t - st.at) / 0.8);
+      const ex = A.x + (B.x - A.x) * k;
+      const ey = A.y + (B.y - A.y) * k;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = rgba(cfg.accent, 0.1);
+      ctx.lineWidth = 34;
+      ctx.beginPath();
+      ctx.moveTo(A.x, A.y);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      ctx.strokeStyle = rgba(cfg.accent, 0.5);
+      ctx.lineWidth = 2;
+      for (const off of [-17, 17]) {
+        const ox = -Math.sin(ang) * off;
+        const oy = Math.cos(ang) * off;
+        ctx.beginPath();
+        ctx.moveTo(A.x + ox, A.y + oy);
+        ctx.lineTo(ex + ox, ey + oy);
+        ctx.stroke();
+      }
+      ctx.setLineDash([4, 18]);
+      ctx.lineDashOffset = -t * 30;
+      ctx.strokeStyle = rgba(cfg.accent, 0.35);
+      ctx.beginPath();
+      ctx.moveTo(A.x, A.y);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (st.label) {
+      ctx.save();
+      ctx.translate(mid.x, mid.y);
+      ctx.rotate(ang);
+      ctx.font = `700 17px ${SANS}`;
+      ctx.fillStyle = st.open ? cfg.accent : C.dim;
+      ctx.textAlign = 'center';
+      ctx.fillText(st.label, 0, st.open ? -62 : -14);
+      ctx.restore();
+    }
+  }
+
+  function drawPacket(ctx, sc, p, t) {
+    const k = (t - p.at) / p.dur;
+    if (k < 0 || k > 1) return;
+    const link = sc.cfg.links.find((l) => l.id === p.link);
+    let [A, B] = linkPts(sc.cfg, link);
+    if (p.dir === 'back') [A, B] = [B, A];
+    const col = KIND[p.kind] || C.req;
+
+    ctx.font = `700 21px ${SANS}`;
+    const pw = ctx.measureText(p.label).width + 56;
+    const ph = 42;
+    const dx = B.x - A.x;
+    const dy = B.y - A.y;
+    const len = Math.hypot(dx, dy);
+    const ux = dx / len;
+    const uy = dy / len;
+    // Normal ke "kiri" arah gerak: paket pergi (kiri→kanan) lewat atas garis,
+    // paket balik (kanan→kiri) otomatis lewat bawah garis.
+    const lane = 30;
+    const nx = uy;
+    const ny = -ux;
+    const margin = Math.min(pw / 2 + 6, len * 0.3);
+    const S = { x: A.x + ux * margin + nx * lane, y: A.y + uy * margin + ny * lane };
+    const E = { x: B.x - ux * margin + nx * lane, y: B.y - uy * margin + ny * lane };
+    const e = ease(k);
+    const px = S.x + (E.x - S.x) * e;
+    const py = S.y + (E.y - S.y) * e;
+    const alpha = Math.min(clamp(k / 0.07), clamp((1 - k) / 0.07));
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    const g = ctx.createLinearGradient(S.x, S.y, px, py);
+    g.addColorStop(0, rgba(col, 0));
+    g.addColorStop(1, rgba(col, 0.75));
+    ctx.strokeStyle = g;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(S.x, S.y);
+    ctx.lineTo(px, py);
+    ctx.stroke();
+
+    ctx.shadowColor = rgba(col, 0.7);
+    ctx.shadowBlur = 22;
+    rr(ctx, px - pw / 2, py - ph / 2, pw, ph, ph / 2);
+    ctx.fillStyle = '#0f1a30';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = rgba(col, 0.22);
+    ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // panah arah
+    const fx = px + ux * (pw / 2 - 18);
+    const fy = py + uy * (pw / 2 - 18);
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(fx + ux * 9, fy + uy * 9);
+    ctx.lineTo(fx - ux * 5 - uy * 7, fy - uy * 5 + ux * 7);
+    ctx.lineTo(fx - ux * 5 + uy * 7, fy - uy * 5 - ux * 7);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.label, px - ux * 8, py + 1);
+    if (p.sub) {
+      ctx.font = `600 16px ${MONO}`;
+      ctx.fillStyle = col;
+      ctx.fillText(p.sub, px, py + (p.dir === 'fwd' ? -36 : 36));
+    }
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------------------- gambar: panel bawah
+  function drawCaption(ctx, sc, t) {
+    const x = 70;
+    const y = 668;
+    const w = 650;
+    const h = 352;
+    rr(ctx, x, y, w, h, 18);
+    ctx.fillStyle = C.panel;
+    ctx.fill();
+    ctx.strokeStyle = C.border;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const st = lastAt(sc.steps, t);
+    if (!st) return;
+    const idx = sc.steps.indexOf(st);
+    const a = clamp((t - st.at) / 0.45);
+    const slide = (1 - ease(a)) * 16;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.font = `800 17px ${SANS}`;
+    ctx.fillStyle = sc.cfg.accent;
+    ctx.fillText(`LANGKAH ${idx + 1} / ${sc.steps.length}`, x + 32, y + 48 + slide);
+    ctx.font = `800 33px ${SANS}`;
+    ctx.fillStyle = C.text;
+    let yy = y + 92 + slide;
+    for (const line of wrap(ctx, st.title, w - 64)) {
+      ctx.fillText(line, x + 32, yy);
+      yy += 40;
+    }
+    ctx.font = `400 24px ${SANS}`;
+    ctx.fillStyle = '#c3d0e4';
+    yy += 8;
+    for (const line of wrap(ctx, st.text, w - 64)) {
+      ctx.fillText(line, x + 32, yy);
+      yy += 35;
+    }
+    ctx.restore();
+  }
+
+  // pewarnaan sintaks sederhana untuk panel "isi pesan"
+  function tokens(line) {
+    if (Array.isArray(line)) return line.map(([text, c]) => ({ text, color: KIND[c] || C[c] || c }));
+    if (typeof line === 'object' && line) return [{ text: line.t, color: KIND[line.c] || C[line.c] || line.c }];
+    if (/^\s*(#|\/\/)/.test(line)) return [{ text: line, color: C.dim }];
+    if (/^(GET|POST|PUT|DELETE|PRI|HTTP\/)/.test(line)) return [{ text: line, color: C.warn }];
+    if (line.includes('<')) {
+      return line.split(/(<[^>]*>)/).filter(Boolean).map((p) => ({ text: p, color: p.startsWith('<') ? C.pink : C.text }));
+    }
+    const hm = line.match(/^(\s*:?[A-Za-z][\w-]*:)(\s.*)?$/);
+    if (hm && !/^\s*"/.test(line)) return [{ text: hm[1], color: C.req }, { text: hm[2] || '', color: C.text }];
+    const out = [];
+    const re = /"(?:[^"\\]|\\.)*"(\s*:)?|\b\d+\b|\b(query|mutation|service|rpc|message|returns|true|false|null)\b/g;
+    let last = 0;
+    let m;
+    while ((m = re.exec(line))) {
+      if (m.index > last) out.push({ text: line.slice(last, m.index), color: C.text });
+      let color = C.res;
+      if (m[1]) color = C.req;
+      else if (/^\d/.test(m[0])) color = C.warn;
+      else if (m[2]) color = C.pink;
+      out.push({ text: m[0], color });
+      last = re.lastIndex;
+    }
+    if (last < line.length) out.push({ text: line.slice(last), color: C.text });
+    return out;
+  }
+
+  function drawInspector(ctx, sc, t) {
+    const x = 750;
+    const y = 668;
+    const w = 1100;
+    const h = 352;
+    rr(ctx, x, y, w, h, 18);
+    ctx.fillStyle = '#0c1424';
+    ctx.fill();
+    ctx.strokeStyle = C.border;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const ins = lastAt(sc.inspects, t);
+    sectionTitle(ctx, 'Isi pesan', x + 28, y + 36);
+    if (!ins) return;
+    const col = KIND[ins.kind] || C.req;
+    const a = clamp((t - ins.at) / 0.3);
+    ctx.save();
+    ctx.globalAlpha = a;
+
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(x + 160, y + 30, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = `700 21px ${SANS}`;
+    ctx.fillStyle = C.text;
+    ctx.fillText(ins.title, x + 176, y + 37);
+    let rx = x + w - 28;
+    ctx.textAlign = 'right';
+    if (ins.badge) {
+      ctx.font = `700 17px ${MONO}`;
+      const bw = ctx.measureText(ins.badge).width + 24;
+      rr(ctx, rx - bw, y + 15, bw, 32, 8);
+      ctx.fillStyle = rgba(col, 0.18);
+      ctx.fill();
+      ctx.fillStyle = col;
+      ctx.fillText(ins.badge, rx - 12, y + 37);
+      rx -= bw + 16;
+    }
+    if (ins.dir) {
+      ctx.font = `600 17px ${SANS}`;
+      ctx.fillStyle = C.muted;
+      ctx.fillText(ins.dir, rx, y + 37);
+    }
+    ctx.textAlign = 'left';
+
+    ctx.strokeStyle = C.border;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 24, y + 60);
+    ctx.lineTo(x + w - 24, y + 60);
+    ctx.stroke();
+
+    const lines = ins.lines || [];
+    const maxChars = Math.max(
+      20,
+      ...lines.map((l) => (Array.isArray(l) ? l.map((p) => p[0]).join('') : typeof l === 'object' ? l.t : l).length),
+    );
+    const size = Math.min(21, (h - 82) / (lines.length * 1.34), (w - 56) / (maxChars * 0.61));
+    const lh = size * 1.34;
+    ctx.font = `500 ${size}px ${MONO}`;
+    const shown = Math.floor((t - ins.at) / 0.035) + 1;
+    lines.slice(0, shown).forEach((line, i) => {
+      let cx = x + 28;
+      for (const tok of tokens(line)) {
+        ctx.fillStyle = tok.color;
+        ctx.fillText(tok.text, cx, y + 72 + size + i * lh);
+        cx += ctx.measureText(tok.text).width;
+      }
+    });
+    ctx.restore();
+  }
+
+  function drawProgress(ctx, sc, t) {
+    const x = 70;
+    const y = 1044;
+    const w = W - 140;
+    const d = sc.duration;
+    rr(ctx, x, y, w, 6, 3);
+    ctx.fillStyle = C.panel;
+    ctx.fill();
+    rr(ctx, x, y, w * clamp(t / d), 6, 3);
+    ctx.fillStyle = sc.cfg.accent;
+    ctx.fill();
+    for (const st of sc.steps) {
+      ctx.fillStyle = st.at <= t ? '#ffffff' : C.dim;
+      ctx.beginPath();
+      ctx.arc(x + (w * st.at) / d, y + 3, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // ---------------------------------------------------------------- gambar: intro & outro
+  function drawOverlay(ctx, sc, o, t) {
+    const lt = t - o.at;
+    if (lt < 0 || lt > o.dur) return;
+    const cfg = sc.cfg;
+    const c = o.content;
+    const a = o.kind === 'intro' ? 1 - clamp((lt - (o.dur - 0.7)) / 0.7) : clamp(lt / 0.7);
+    if (a <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = C.bg;
+    ctx.fillRect(0, 0, W, H);
+    const g = ctx.createRadialGradient(W / 2, H / 2, 50, W / 2, H / 2, 1000);
+    g.addColorStop(0, rgba(cfg.accent, 0.13));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+
+    const x = 200;
+    const oy = 70; // geser konten ke tengah layar
+    const k = (d) => ease((lt - d) / 0.6);
+    ctx.font = `800 22px ${SANS}`;
+    ctx.fillStyle = cfg.accent;
+    ctx.globalAlpha = a * k(0.1);
+    ctx.fillText(o.kind === 'intro' ? `SIMULASI KOMUNIKASI DATA  ·  ${cfg.index} / 5` : 'RINGKASAN', x, 250 + oy);
+
+    ctx.globalAlpha = a * k(0.25);
+    ctx.font = `800 ${o.kind === 'intro' ? 120 : 84}px ${SANS}`;
+    ctx.fillStyle = C.text;
+    ctx.fillText(c.title, x, (o.kind === 'intro' ? 380 : 350) + oy);
+    let y = (o.kind === 'intro' ? 450 : 410) + oy;
+    if (c.subtitle) {
+      ctx.font = `500 38px ${SANS}`;
+      ctx.fillStyle = C.muted;
+      ctx.fillText(c.subtitle, x, y);
+      y += 30;
+    }
+    if (o.kind === 'intro') {
+      ctx.globalAlpha = a * k(0.45);
+      drawChipRow(ctx, cfg.chips, x, y + 6, { color: cfg.accent, h: 42, font: `600 22px ${SANS}` });
+      y += 100;
+    } else y += 40;
+
+    c.bullets.forEach((b, i) => {
+      ctx.globalAlpha = a * k(0.8 + i * 0.35);
+      const off = (1 - k(0.8 + i * 0.35)) * 24;
+      ctx.fillStyle = rgba(cfg.accent, 0.18);
+      ctx.beginPath();
+      ctx.arc(x + 20 + off, y - 10, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = `800 20px ${SANS}`;
+      ctx.fillStyle = cfg.accent;
+      ctx.textAlign = 'center';
+      ctx.fillText(String(i + 1), x + 20 + off, y - 3);
+      ctx.textAlign = 'left';
+      ctx.font = `500 32px ${SANS}`;
+      ctx.fillStyle = C.text;
+      ctx.fillText(b, x + 64 + off, y);
+      y += 72;
+    });
+
+    if (c.footer) {
+      ctx.globalAlpha = a * k(1.2);
+      ctx.font = `500 22px ${MONO}`;
+      ctx.fillStyle = C.dim;
+      ctx.fillText(c.footer, x, H - 110);
+    }
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------------------- render utama
+  function render(ctx, sc, t) {
+    const s = computeState(sc, t);
+    ctx.save();
+    drawBackground(ctx);
+    drawHeader(ctx, sc.cfg);
+    for (const link of sc.cfg.links) drawLink(ctx, sc, link, s, t);
+    for (const node of sc.cfg.nodes) drawNode(ctx, sc, node, s, t);
+    for (const p of sc.packets) drawPacket(ctx, sc, p, t);
+    drawCaption(ctx, sc, t);
+    drawInspector(ctx, sc, t);
+    drawProgress(ctx, sc, t);
+    for (const o of sc.overlays) drawOverlay(ctx, sc, o, t);
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------------------- tata letak standar
+  // Satu client di kiri, satu server di kanan, satu jalur jaringan di tengah.
+  function single({ client = {}, server = {} }) {
+    return {
+      nodes: [
+        { id: 'client', kind: 'client', x: 70, y: 140, w: 500, h: 495, title: 'Client', subtitle: '', ...client },
+        { id: 'server', kind: 'server', x: 1350, y: 140, w: 500, h: 495, title: 'Server', subtitle: '', table: 'buku', status: true, tableTitle: 'bukuStore.js (memori)', ...server },
+      ],
+      links: [{ id: 'net', from: 'client', to: 'server' }],
+    };
+  }
+
+  window.SIM = {
+    W,
+    H,
+    C,
+    BUKU,
+    BUKU_BARU,
+    layout: { single },
+    scenes: {},
+    order: [],
+    register(id, cfg, build) {
+      const sc = new Script(cfg);
+      build(sc);
+      this.scenes[id] = sc;
+      this.order.push(id);
+    },
+    duration(id) {
+      return this.scenes[id].duration;
+    },
+    fonts({ sans, mono }) {
+      if (sans) SANS = sans;
+      if (mono) MONO = mono;
+    },
+    render(ctx, id, t) {
+      render(ctx, this.scenes[id], t);
+    },
+  };
+})();
+
+</script>
+<script>
+/* scenes/rest.js */
+// Skenario 1: REST API (REST_API/server.js)
+(function () {
+  const { BUKU, BUKU_BARU } = SIM;
+  const routes = ['GET /buku', 'GET /buku/:id', 'POST /buku', 'PUT /buku/:id', 'DELETE /buku/:id'];
+
+  SIM.register(
+    'rest',
+    {
+      index: 1,
+      title: 'REST API',
+      accent: '#38bdf8',
+      chips: ['HTTP/1.1', 'JSON', 'Port 3000', 'Stateless'],
+      ...SIM.layout.single({
+        client: { title: 'Client', subtitle: 'curl / aplikasi frontend' },
+        server: { title: 'Server REST', subtitle: 'Node.js + Express · :3000', idle: 'menunggu request…' },
+      }),
+      tables: { buku: BUKU },
+      linkState: { net: { open: false, label: 'belum terhubung' } },
+      nodeState: { server: { extra: { title: 'Routing  (prefix /api)', items: routes, at: -9 } } },
+    },
+    (s) => {
+      s.intro({
+        title: 'REST API',
+        subtitle: 'Representational State Transfer',
+        bullets: [
+          'Setiap data adalah resource dengan URL sendiri: /api/buku/1',
+          'Operasi ditentukan oleh HTTP method: GET, POST, PUT, DELETE',
+          'Pesan berformat JSON dan stateless: tiap request berdiri sendiri',
+        ],
+      });
+
+      // 1. TCP handshake
+      s.step('Membuka koneksi TCP', 'Sebelum HTTP dikirim, client dan server melakukan three-way handshake TCP ke port 3000.');
+      s.wait(0.8);
+      s.inspect({
+        kind: 'net',
+        title: 'TCP three-way handshake',
+        dir: 'lapisan transport',
+        lines: [
+          'Client → Server   SYN        seq = x',
+          'Server → Client   SYN-ACK    seq = y, ack = x + 1',
+          'Client → Server   ACK        ack = y + 1',
+          '',
+          '# Koneksi terbentuk. Express memakai keep-alive,',
+          '# jadi koneksi ini dipakai ulang untuk request berikutnya.',
+        ],
+      });
+      s.packet({ label: 'SYN', kind: 'net', dur: 1 });
+      s.packet({ dir: 'back', label: 'SYN-ACK', kind: 'net', dur: 1 });
+      s.packet({ label: 'ACK', kind: 'net', dur: 1 });
+      s.openLink('net', 'TCP :3000 · keep-alive');
+      s.wait(2.2);
+
+      // 2. GET semua
+      s.step('READ: ambil semua buku', 'Method GET ke URL resource /api/buku. GET hanya meminta data, jadi tidak membawa body.');
+      s.wait(0.8);
+      s.log('client', '→ GET /api/buku');
+      s.packet({
+        label: 'GET /api/buku',
+        inspect: {
+          title: 'HTTP Request',
+          dir: 'Client → Server',
+          lines: ['GET /api/buku HTTP/1.1', 'Host: localhost:3000', 'Accept: application/json', '', '# (tanpa body)'],
+        },
+      });
+      s.activate('server', 0);
+      s.process('server', 'router: GET /api/buku → getAll()');
+      s.flash('buku', 'req');
+      s.wait(0.5);
+      s.packet({
+        dir: 'back',
+        label: '200 OK',
+        kind: 'res',
+        sub: '442 byte JSON',
+        inspect: {
+          title: 'HTTP Response',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [
+            'HTTP/1.1 200 OK',
+            'Content-Type: application/json; charset=utf-8',
+            'Content-Length: 442',
+            '',
+            '{"status":"sukses","data":[',
+            '  {"id":1,"judul":"Laskar Pelangi","penulis":"Andrea Hirata",...,"stok":5},',
+            '  {"id":2,"judul":"Bumi Manusia","penulis":"Pramoedya Ananta Toer",...,"stok":3},',
+            '  {"id":3,"judul":"Negeri 5 Menara","penulis":"Ahmad Fuadi",...,"stok":4}',
+            ']}',
+          ],
+        },
+      });
+      s.log('client', '← 200 OK · 3 buku', 'res');
+      s.wait(2.6);
+
+      // 3. POST
+      s.step('CREATE: tambah buku', 'POST mengirim data buku baru di body JSON. Server memvalidasi, menyimpan, lalu membalas 201 Created.');
+      s.wait(0.8);
+      s.log('client', '→ POST /api/buku');
+      s.packet({
+        label: 'POST /api/buku',
+        sub: 'body JSON 130 byte',
+        inspect: {
+          title: 'HTTP Request',
+          dir: 'Client → Server',
+          lines: [
+            'POST /api/buku HTTP/1.1',
+            'Host: localhost:3000',
+            'Content-Type: application/json',
+            'Content-Length: 130',
+            '',
+            '{"judul":"Ronggeng Dukuh Paruk","penulis":"Ahmad Tohari",',
+            ' "penerbit":"Gramedia","tahunTerbit":1982,',
+            ' "isbn":"9789792223477","stok":2}',
+          ],
+        },
+      });
+      s.activate('server', 2);
+      s.process('server', 'express.json() → parse body', 1);
+      s.process('server', 'validasi 6 field → create()', 1);
+      s.addRow('buku', BUKU_BARU);
+      s.wait(0.6);
+      s.packet({
+        dir: 'back',
+        label: '201 Created',
+        kind: 'res',
+        inspect: {
+          title: 'HTTP Response',
+          dir: 'Server → Client',
+          badge: '201 Created',
+          lines: [
+            'HTTP/1.1 201 Created',
+            'Content-Type: application/json; charset=utf-8',
+            'Content-Length: 200',
+            '',
+            '{"status":"sukses","pesan":"Buku berhasil ditambahkan",',
+            ' "data":{"id":4,"judul":"Ronggeng Dukuh Paruk","penulis":"Ahmad Tohari",',
+            '         "penerbit":"Gramedia","tahunTerbit":1982,',
+            '         "isbn":"9789792223477","stok":2}}',
+          ],
+        },
+      });
+      s.log('client', '← 201 Created · id 4', 'res');
+      s.wait(2.6);
+
+      // 4. PUT
+      s.step('UPDATE: ubah stok', 'PUT ke URL buku tertentu (/api/buku/4). Cukup kirim field yang ingin diubah.');
+      s.wait(0.8);
+      s.log('client', '→ PUT /api/buku/4');
+      s.packet({
+        label: 'PUT /api/buku/4',
+        inspect: {
+          title: 'HTTP Request',
+          dir: 'Client → Server',
+          lines: ['PUT /api/buku/4 HTTP/1.1', 'Host: localhost:3000', 'Content-Type: application/json', 'Content-Length: 11', '', '{"stok":10}'],
+        },
+      });
+      s.activate('server', 3);
+      s.process('server', 'req.params.id = 4 → update()');
+      s.updateRow('buku', 4, { stok: 10 });
+      s.wait(0.6);
+      s.packet({
+        dir: 'back',
+        label: '200 OK',
+        kind: 'res',
+        inspect: {
+          title: 'HTTP Response',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [
+            'HTTP/1.1 200 OK',
+            'Content-Type: application/json; charset=utf-8',
+            'Content-Length: 200',
+            '',
+            '{"status":"sukses","pesan":"Buku berhasil diperbarui",',
+            ' "data":{"id":4,"judul":"Ronggeng Dukuh Paruk",...,"stok":10}}',
+          ],
+        },
+      });
+      s.log('client', '← 200 OK · stok = 10', 'res');
+      s.wait(2.4);
+
+      // 5. DELETE
+      s.step('DELETE: hapus buku', 'Method DELETE ke URL /api/buku/4. Server menghapus data lalu mengembalikan buku yang dihapus.');
+      s.wait(0.8);
+      s.log('client', '→ DELETE /api/buku/4');
+      s.packet({
+        label: 'DELETE /api/buku/4',
+        inspect: {
+          title: 'HTTP Request',
+          dir: 'Client → Server',
+          lines: ['DELETE /api/buku/4 HTTP/1.1', 'Host: localhost:3000', '', '# (tanpa body)'],
+        },
+      });
+      s.activate('server', 4);
+      s.process('server', 'req.params.id = 4 → remove()');
+      s.removeRow('buku', 4);
+      s.wait(0.8);
+      s.packet({
+        dir: 'back',
+        label: '200 OK',
+        kind: 'res',
+        inspect: {
+          title: 'HTTP Response',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [
+            'HTTP/1.1 200 OK',
+            'Content-Type: application/json; charset=utf-8',
+            'Content-Length: 197',
+            '',
+            '{"status":"sukses","pesan":"Buku berhasil dihapus",',
+            ' "data":{"id":4,"judul":"Ronggeng Dukuh Paruk",...}}',
+          ],
+        },
+      });
+      s.log('client', '← 200 OK · terhapus', 'res');
+      s.wait(2.4);
+
+      // 6. 404
+      s.step('Error: resource tidak ada', 'Buku id 4 sudah dihapus. REST memakai status code HTTP untuk memberi tahu hasilnya: 404 Not Found.');
+      s.wait(0.8);
+      s.log('client', '→ GET /api/buku/4');
+      s.packet({
+        label: 'GET /api/buku/4',
+        inspect: {
+          title: 'HTTP Request',
+          dir: 'Client → Server',
+          lines: ['GET /api/buku/4 HTTP/1.1', 'Host: localhost:3000', 'Accept: application/json'],
+        },
+      });
+      s.activate('server', 1, 'err');
+      s.process('server', 'getById(4) → null', 1.2, 'err');
+      s.packet({
+        dir: 'back',
+        label: '404 Not Found',
+        kind: 'err',
+        inspect: {
+          title: 'HTTP Response',
+          dir: 'Server → Client',
+          badge: '404 Not Found',
+          lines: [
+            'HTTP/1.1 404 Not Found',
+            'Content-Type: application/json; charset=utf-8',
+            'Content-Length: 61',
+            '',
+            '{"status":"gagal","pesan":"Buku dengan id 4 tidak ditemukan"}',
+          ],
+        },
+      });
+      s.log('client', '← 404 Not Found', 'err');
+      s.wait(3);
+
+      s.outro({
+        title: 'REST API',
+        bullets: [
+          'URL menunjuk resource, HTTP method menentukan operasinya',
+          'Hasil dibaca dari status code: 200, 201, 400, 404',
+          'Stateless: setiap request membawa semua informasi yang dibutuhkan',
+          'Ringan dan mudah diuji: curl, browser, Postman',
+        ],
+        footer: 'Kode: REST_API/server.js',
+      });
+    },
+  );
+})();
+
+</script>
+<script>
+/* scenes/soap.js */
+// Skenario 2: SOAP API (SOAP_API/server.js + perpustakaan.wsdl)
+(function () {
+  const { BUKU, BUKU_BARU } = SIM;
+  const ops = ['GetAllBuku', 'GetBukuById', 'CreateBuku', 'UpdateBuku', 'DeleteBuku'];
+  const NS = 'http://perpustakaan.example.com/buku';
+
+  // Header HTTP untuk request SOAP
+  const httpReq = (op) => [
+    'POST /soap/perpustakaan HTTP/1.1',
+    'Content-Type: text/xml; charset=utf-8',
+    `SOAPAction: "${NS}/${op}"`,
+    '',
+  ];
+  const envBuka = ['<soapenv:Envelope xmlns:soapenv="…/soap/envelope/" xmlns:buk="…/buku">', '  <soapenv:Body>'];
+  const envTutup = ['  </soapenv:Body>', '</soapenv:Envelope>'];
+  const resBuka = (status = '200 OK') => [
+    `HTTP/1.1 ${status}`,
+    'Content-Type: text/xml; charset=utf-8',
+    '',
+    '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">',
+    '  <soap:Body>',
+  ];
+  const resTutup = ['  </soap:Body>', '</soap:Envelope>'];
+
+  SIM.register(
+    'soap',
+    {
+      index: 2,
+      title: 'SOAP API',
+      accent: '#f59e0b',
+      chips: ['SOAP 1.1', 'XML', 'WSDL', 'Port 8000'],
+      ...SIM.layout.single({
+        client: { title: 'Client', subtitle: 'node-soap client / SoapUI' },
+        server: { title: 'Server SOAP', subtitle: 'Node.js + soap · /soap/perpustakaan', idle: 'menunggu SOAP request…' },
+      }),
+      tables: { buku: BUKU },
+      linkState: { net: { open: true, label: 'HTTP/1.1 · TCP :8000', at: -9 } },
+      nodeState: { server: { extra: { title: 'Operasi di WSDL (portType)', items: ops, at: -9 } } },
+    },
+    (s) => {
+      s.intro({
+        title: 'SOAP API',
+        subtitle: 'Simple Object Access Protocol',
+        bullets: [
+          'Pesan XML dengan struktur baku: Envelope → Header → Body',
+          'Kontrak layanan ditulis di WSDL: operasi, tipe data, alamat',
+          'Semua operasi dikirim dengan POST ke SATU endpoint yang sama',
+        ],
+      });
+
+      // 1. WSDL
+      s.step('Membaca kontrak WSDL', 'Client mengunduh WSDL untuk mengetahui daftar operasi, tipe data, dan alamat endpoint. Dari sini client membuat proxy.');
+      s.wait(0.8);
+      s.log('client', '→ GET ?wsdl');
+      s.packet({
+        label: 'GET ?wsdl',
+        inspect: {
+          title: 'HTTP Request',
+          dir: 'Client → Server',
+          lines: ['GET /soap/perpustakaan?wsdl HTTP/1.1', 'Host: localhost:8000'],
+        },
+      });
+      s.process('server', 'kirim perpustakaan.wsdl', 1);
+      s.packet({
+        dir: 'back',
+        label: 'WSDL (XML)',
+        kind: 'res',
+        inspect: {
+          title: 'Dokumen WSDL',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [
+            '<definitions name="PerpustakaanService" targetNamespace="…/buku">',
+            '  <types>  <xsd:complexType name="Buku"> id, judul, penulis, … </types>',
+            '  <portType name="PerpustakaanPortType">',
+            '    <operation name="GetAllBuku"/>   <operation name="GetBukuById"/>',
+            '    <operation name="CreateBuku"/>   <operation name="UpdateBuku"/>',
+            '    <operation name="DeleteBuku"/>',
+            '  </portType>',
+            '  <soap:binding style="document" transport="…/soap/http"/>',
+            '  <soap:address location="http://localhost:8000/soap/perpustakaan"/>',
+            '</definitions>',
+          ],
+        },
+      });
+      s.log('client', '← WSDL · 5 operasi', 'res');
+      s.extra('client', { title: 'Proxy dari WSDL', items: ops.map((o) => `${o}()`) });
+      s.wait(3);
+
+      // 2. GetAllBuku
+      s.step('READ: GetAllBuku', 'Nama operasi ditulis sebagai elemen XML di dalam soap:Body. Header SOAPAction juga menyebut operasinya.');
+      s.wait(0.8);
+      s.activate('client', 0);
+      s.log('client', '→ GetAllBuku()');
+      s.packet({
+        label: '<GetAllBukuRequest/>',
+        inspect: { title: 'SOAP Request', dir: 'Client → Server', lines: [...httpReq('GetAllBuku'), ...envBuka, '    <buk:GetAllBukuRequest/>', ...envTutup] },
+      });
+      s.activate('server', 0);
+      s.process('server', 'parse XML → cocokkan operasi', 1);
+      s.process('server', 'GetAllBuku() → getAll()', 1);
+      s.flash('buku', 'req');
+      s.wait(0.4);
+      s.packet({
+        dir: 'back',
+        label: '<GetAllBukuResponse>',
+        kind: 'res',
+        inspect: {
+          title: 'SOAP Response',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [
+            ...resBuka(),
+            `    <GetAllBukuResponse xmlns="${NS}">`,
+            '      <buku><id>1</id><judul>Laskar Pelangi</judul>…<stok>5</stok></buku>',
+            '      <buku><id>2</id><judul>Bumi Manusia</judul>…<stok>3</stok></buku>',
+            '      <buku><id>3</id><judul>Negeri 5 Menara</judul>…<stok>4</stok></buku>',
+            '    </GetAllBukuResponse>',
+            ...resTutup,
+          ],
+        },
+      });
+      s.log('client', '← GetAllBukuResponse · 3 buku', 'res');
+      s.wait(2.8);
+
+      // 3. CreateBuku
+      s.step('CREATE: CreateBuku', 'Setiap field buku menjadi elemen XML. Pesannya jauh lebih panjang daripada JSON untuk data yang sama.');
+      s.wait(0.8);
+      s.activate('client', 2);
+      s.log('client', '→ CreateBuku(…)');
+      s.packet({
+        label: '<CreateBukuRequest>',
+        sub: 'XML 434 byte (JSON: 130)',
+        inspect: {
+          title: 'SOAP Request',
+          dir: 'Client → Server',
+          lines: [
+            ...httpReq('CreateBuku'),
+            ...envBuka,
+            '    <buk:CreateBukuRequest>',
+            '      <buk:judul>Ronggeng Dukuh Paruk</buk:judul>  <buk:stok>2</buk:stok>',
+            '      <buk:penulis>Ahmad Tohari</buk:penulis>  <buk:penerbit>Gramedia</buk:penerbit>',
+            '      <buk:tahunTerbit>1982</buk:tahunTerbit>  <buk:isbn>9789792223477</buk:isbn>',
+            '    </buk:CreateBukuRequest>',
+            ...envTutup,
+          ],
+        },
+      });
+      s.activate('server', 2);
+      s.process('server', 'validasi tipe sesuai XSD', 1);
+      s.process('server', 'CreateBuku() → create()', 1);
+      s.addRow('buku', BUKU_BARU);
+      s.wait(0.5);
+      s.packet({
+        dir: 'back',
+        label: '<CreateBukuResponse>',
+        kind: 'res',
+        inspect: {
+          title: 'SOAP Response',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [
+            ...resBuka(),
+            `    <CreateBukuResponse xmlns="${NS}">`,
+            '      <pesan>Buku berhasil ditambahkan</pesan>',
+            '      <buku><id>4</id><judul>Ronggeng Dukuh Paruk</judul>…<stok>2</stok></buku>',
+            '    </CreateBukuResponse>',
+            ...resTutup,
+          ],
+        },
+      });
+      s.log('client', '← CreateBukuResponse · id 4', 'res');
+      s.wait(2.6);
+
+      // 4. UpdateBuku
+      s.step('UPDATE: UpdateBuku', 'Tetap POST ke endpoint yang sama. Yang berubah hanya elemen di dalam Body dan header SOAPAction.');
+      s.wait(0.8);
+      s.activate('client', 3);
+      s.log('client', '→ UpdateBuku(id 4)');
+      s.packet({
+        label: '<UpdateBukuRequest>',
+        inspect: {
+          title: 'SOAP Request',
+          dir: 'Client → Server',
+          lines: [
+            ...httpReq('UpdateBuku'),
+            ...envBuka,
+            '    <buk:UpdateBukuRequest>',
+            '      <buk:id>4</buk:id>  <buk:stok>10</buk:stok>',
+            '    </buk:UpdateBukuRequest>',
+            ...envTutup,
+          ],
+        },
+      });
+      s.activate('server', 3);
+      s.process('server', 'UpdateBuku() → update(4)');
+      s.updateRow('buku', 4, { stok: 10 });
+      s.wait(0.5);
+      s.packet({
+        dir: 'back',
+        label: '<UpdateBukuResponse>',
+        kind: 'res',
+        inspect: {
+          title: 'SOAP Response',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [
+            ...resBuka(),
+            `    <UpdateBukuResponse xmlns="${NS}">`,
+            '      <pesan>Buku berhasil diperbarui</pesan>',
+            '      <buku><id>4</id>…<stok>10</stok></buku>',
+            '    </UpdateBukuResponse>',
+            ...resTutup,
+          ],
+        },
+      });
+      s.log('client', '← UpdateBukuResponse', 'res');
+      s.wait(2.4);
+
+      // 5. DeleteBuku
+      s.step('DELETE: DeleteBuku', 'Menghapus buku id 4. Tidak ada method DELETE, karena SOAP hanya memakai POST.');
+      s.wait(0.8);
+      s.activate('client', 4);
+      s.log('client', '→ DeleteBuku(id 4)');
+      s.packet({
+        label: '<DeleteBukuRequest>',
+        inspect: {
+          title: 'SOAP Request',
+          dir: 'Client → Server',
+          lines: [...httpReq('DeleteBuku'), ...envBuka, '    <buk:DeleteBukuRequest><buk:id>4</buk:id></buk:DeleteBukuRequest>', ...envTutup],
+        },
+      });
+      s.activate('server', 4);
+      s.process('server', 'DeleteBuku() → remove(4)');
+      s.removeRow('buku', 4);
+      s.wait(0.7);
+      s.packet({
+        dir: 'back',
+        label: '<DeleteBukuResponse>',
+        kind: 'res',
+        inspect: {
+          title: 'SOAP Response',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [
+            ...resBuka(),
+            `    <DeleteBukuResponse xmlns="${NS}">`,
+            '      <pesan>Buku berhasil dihapus</pesan>',
+            '      <buku><id>4</id><judul>Ronggeng Dukuh Paruk</judul>…</buku>',
+            '    </DeleteBukuResponse>',
+            ...resTutup,
+          ],
+        },
+      });
+      s.log('client', '← DeleteBukuResponse', 'res');
+      s.wait(2.4);
+
+      // 6. Fault
+      s.step('Error: SOAP Fault', 'Buku id 4 sudah tidak ada. SOAP melaporkan error dengan elemen soap:Fault di dalam Body, dikirim dengan HTTP 500.');
+      s.wait(0.8);
+      s.activate('client', 1);
+      s.log('client', '→ GetBukuById(id 4)');
+      s.packet({
+        label: '<GetBukuByIdRequest>',
+        inspect: {
+          title: 'SOAP Request',
+          dir: 'Client → Server',
+          lines: [...httpReq('GetBukuById'), ...envBuka, '    <buk:GetBukuByIdRequest><buk:id>4</buk:id></buk:GetBukuByIdRequest>', ...envTutup],
+        },
+      });
+      s.activate('server', 1, 'err');
+      s.process('server', 'getById(4) → null → throw Fault', 1.3, 'err');
+      s.packet({
+        dir: 'back',
+        label: '<soap:Fault>',
+        kind: 'err',
+        sub: 'HTTP 500',
+        inspect: {
+          title: 'SOAP Fault',
+          dir: 'Server → Client',
+          badge: '500',
+          lines: [
+            ...resBuka('500 Internal Server Error'),
+            '    <soap:Fault>',
+            '      <faultcode>soap:Client</faultcode>',
+            '      <faultstring>Buku dengan id 4 tidak ditemukan</faultstring>',
+            '    </soap:Fault>',
+            ...resTutup,
+          ],
+        },
+      });
+      s.log('client', '← soap:Fault (soap:Client)', 'err');
+      s.wait(3);
+
+      s.outro({
+        title: 'SOAP API',
+        bullets: [
+          'Format pesan baku: Envelope, Header (opsional), Body, Fault',
+          'Kontrak WSDL membuat client bisa dibuat otomatis (proxy)',
+          'Satu endpoint; operasi dibedakan lewat elemen Body & SOAPAction',
+          'Pesan besar, tetapi ketat dan tervalidasi: populer di sistem enterprise',
+        ],
+        footer: 'Kode: SOAP_API/server.js · SOAP_API/perpustakaan.wsdl',
+      });
+    },
+  );
+})();
+
+</script>
+<script>
+/* scenes/graphql.js */
+// Skenario 3: GraphQL API (GraphQL_API/server.js + schema.graphql)
+(function () {
+  const { BUKU, BUKU_BARU } = SIM;
+  const resolvers = ['semuaBuku', 'buku(id)', 'tambahBuku', 'ubahBuku', 'hapusBuku'];
+  const httpReq = ['POST /graphql HTTP/1.1', 'Host: localhost:4000', 'Content-Type: application/json', ''];
+  const httpRes = ['HTTP/1.1 200 OK', 'Content-Type: application/json; charset=utf-8', ''];
+
+  // Tiga tahap eksekusi GraphQL di server
+  function eksekusi(s, resolver) {
+    s.process('server', 'parse: teks query → AST', 0.9);
+    s.process('server', 'validasi terhadap schema.graphql', 0.9);
+    s.process('server', `resolver ${resolver}`, 0.9);
+  }
+
+  SIM.register(
+    'graphql',
+    {
+      index: 3,
+      title: 'GraphQL API',
+      accent: '#e535ab',
+      chips: ['HTTP POST', 'JSON', 'Skema bertipe', 'Port 4000'],
+      ...SIM.layout.single({
+        client: { title: 'Client', subtitle: 'fetch() / GraphiQL' },
+        server: {
+          title: 'Server GraphQL',
+          subtitle: 'Node.js + graphql-yoga · /graphql',
+          idle: 'menunggu query…',
+          columns: [
+            { key: 'id', label: 'ID', w: 50 },
+            { key: 'judul', label: 'JUDUL' },
+            { key: 'penulis', label: 'PENULIS' },
+            { key: 'stok', label: 'STOK', w: 70, align: 'right' },
+          ],
+        },
+      }),
+      tables: { buku: BUKU },
+      linkState: { net: { open: true, label: 'HTTP/1.1 · TCP :4000', at: -9 } },
+      nodeState: { server: { extra: { title: 'Resolver', items: resolvers, at: -9 } } },
+    },
+    (s) => {
+      s.intro({
+        title: 'GraphQL',
+        subtitle: 'Query Language untuk API',
+        bullets: [
+          'Satu endpoint untuk semua operasi: POST /graphql',
+          'Client menulis query dan memilih sendiri field yang dibutuhkan',
+          'Skema bertipe menjadi kontrak: Query (baca) & Mutation (ubah)',
+        ],
+      });
+
+      // 1. Query semuaBuku { id judul }
+      s.step('READ: client memilih field', 'Client hanya meminta id dan judul. Server menjalankan query melalui tiga tahap: parse, validasi skema, lalu resolver.');
+      s.wait(0.8);
+      s.extra('client', { title: 'Field yang diminta', items: ['semuaBuku', 'id', 'judul'] });
+      s.log('client', '→ query semuaBuku');
+      s.packet({
+        label: 'query { semuaBuku }',
+        inspect: {
+          title: 'GraphQL Query',
+          dir: 'Client → Server',
+          lines: [...httpReq, '{', '  "query": "query { semuaBuku { id judul } }"', '}'],
+        },
+      });
+      s.activate('server', 0);
+      eksekusi(s, 'semuaBuku()');
+      s.flash('buku', 'req');
+      s.wait(0.4);
+      s.packet({
+        dir: 'back',
+        label: 'data.semuaBuku',
+        kind: 'res',
+        sub: '125 byte (REST: 442)',
+        inspect: {
+          title: 'Respons: hanya field yang diminta',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [
+            ...httpRes,
+            '{"data":{"semuaBuku":[',
+            '  {"id":1,"judul":"Laskar Pelangi"},',
+            '  {"id":2,"judul":"Bumi Manusia"},',
+            '  {"id":3,"judul":"Negeri 5 Menara"}',
+            ']}}',
+            '',
+            '# penulis, penerbit, tahunTerbit, isbn, stok TIDAK dikirim',
+          ],
+        },
+      });
+      s.log('client', '← 3 buku (id, judul)', 'res');
+      s.wait(3);
+
+      // 2. Mutation tambahBuku
+      s.step('CREATE: mutation tambahBuku', 'Perubahan data memakai mutation. Data dikirim lewat variables, dan client tetap memilih field yang ingin dikembalikan.');
+      s.wait(0.8);
+      s.extra('client', { title: 'Field yang diminta', items: ['tambahBuku', 'id', 'judul'] });
+      s.log('client', '→ mutation tambahBuku');
+      s.packet({
+        label: 'mutation tambahBuku',
+        inspect: {
+          title: 'GraphQL Mutation',
+          dir: 'Client → Server',
+          lines: [
+            ...httpReq,
+            '{',
+            '  "query": "mutation($input: BukuInput!) { tambahBuku(input: $input) { id judul } }",',
+            '  "variables": { "input": {',
+            '    "judul": "Ronggeng Dukuh Paruk", "penulis": "Ahmad Tohari", "penerbit": "Gramedia",',
+            '    "tahunTerbit": 1982, "isbn": "9789792223477", "stok": 2 } }',
+            '}',
+          ],
+        },
+      });
+      s.activate('server', 2);
+      eksekusi(s, 'tambahBuku() → create()');
+      s.addRow('buku', BUKU_BARU);
+      s.wait(0.5);
+      s.packet({
+        dir: 'back',
+        label: 'data.tambahBuku',
+        kind: 'res',
+        inspect: {
+          title: 'Respons Mutation',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [...httpRes, '{"data":{"tambahBuku":{"id":4,"judul":"Ronggeng Dukuh Paruk"}}}'],
+        },
+      });
+      s.log('client', '← tambahBuku · id 4', 'res');
+      s.wait(2.6);
+
+      // 3. Mutation ubahBuku
+      s.step('UPDATE: mutation ubahBuku', 'Input UbahBukuInput semua field-nya opsional, jadi cukup kirim stok. Client hanya meminta id dan stok kembali.');
+      s.wait(0.8);
+      s.extra('client', { title: 'Field yang diminta', items: ['ubahBuku', 'id', 'stok'] });
+      s.log('client', '→ mutation ubahBuku');
+      s.packet({
+        label: 'mutation ubahBuku',
+        inspect: {
+          title: 'GraphQL Mutation',
+          dir: 'Client → Server',
+          lines: [...httpReq, '{', '  "query": "mutation { ubahBuku(id: 4, input: { stok: 10 }) { id stok } }"', '}'],
+        },
+      });
+      s.activate('server', 3);
+      eksekusi(s, 'ubahBuku() → update(4)');
+      s.updateRow('buku', 4, { stok: 10 });
+      s.wait(0.5);
+      s.packet({
+        dir: 'back',
+        label: 'data.ubahBuku',
+        kind: 'res',
+        inspect: {
+          title: 'Respons Mutation',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [...httpRes, '{"data":{"ubahBuku":{"id":4,"stok":10}}}'],
+        },
+      });
+      s.log('client', '← ubahBuku · stok 10', 'res');
+      s.wait(2.4);
+
+      // 4. Mutation hapusBuku
+      s.step('DELETE: mutation hapusBuku', 'Menghapus buku id 4. Semua operasi tetap dikirim ke URL yang sama: POST /graphql.');
+      s.wait(0.8);
+      s.extra('client', { title: 'Field yang diminta', items: ['hapusBuku', 'judul'] });
+      s.log('client', '→ mutation hapusBuku');
+      s.packet({
+        label: 'mutation hapusBuku',
+        inspect: {
+          title: 'GraphQL Mutation',
+          dir: 'Client → Server',
+          lines: [...httpReq, '{', '  "query": "mutation { hapusBuku(id: 4) { judul } }"', '}'],
+        },
+      });
+      s.activate('server', 4);
+      eksekusi(s, 'hapusBuku() → remove(4)');
+      s.removeRow('buku', 4);
+      s.wait(0.7);
+      s.packet({
+        dir: 'back',
+        label: 'data.hapusBuku',
+        kind: 'res',
+        inspect: {
+          title: 'Respons Mutation',
+          dir: 'Server → Client',
+          badge: '200 OK',
+          lines: [...httpRes, '{"data":{"hapusBuku":{"judul":"Ronggeng Dukuh Paruk"}}}'],
+        },
+      });
+      s.log('client', '← hapusBuku', 'res');
+      s.wait(2.4);
+
+      // 5. Error validasi skema
+      s.step('Error: query tidak sesuai skema', 'Field "harga" tidak ada di tipe Buku. Query ditolak saat validasi, sehingga resolver tidak pernah dijalankan.');
+      s.wait(0.8);
+      s.extra('client', { title: 'Field yang diminta', items: ['semuaBuku', 'judul', 'harga ?'] });
+      s.log('client', '→ query { judul harga }');
+      s.packet({
+        label: 'query { … harga }',
+        inspect: {
+          title: 'GraphQL Query',
+          dir: 'Client → Server',
+          lines: [...httpReq, '{', '  "query": "{ semuaBuku { judul harga } }"', '}'],
+        },
+      });
+      s.process('server', 'parse: teks query → AST', 0.9);
+      s.process('server', 'validasi: field "harga" tidak ada ✗', 1.3, 'err');
+      s.packet({
+        dir: 'back',
+        label: 'errors[ ]',
+        kind: 'err',
+        sub: 'tetap HTTP 200',
+        inspect: {
+          title: 'Respons Error Validasi',
+          dir: 'Server → Client',
+          badge: '200 OK + errors',
+          kind: 'err',
+          lines: [
+            ...httpRes,
+            '{"errors":[{',
+            '  "message":"Cannot query field \\"harga\\" on type \\"Buku\\".",',
+            '  "locations":[{"line":1,"column":21}],',
+            '  "extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}',
+            '}]}',
+          ],
+        },
+      });
+      s.log('client', '← errors: VALIDATION_FAILED', 'err');
+      s.wait(2.8);
+
+      // 6. Error dari resolver
+      s.step('Error: data tidak ditemukan', 'Kali ini query valid, tetapi resolver melempar error karena buku id 4 sudah dihapus. Error tetap dilaporkan di array "errors".');
+      s.wait(0.8);
+      s.extra('client', { title: 'Field yang diminta', items: ['hapusBuku', 'id'] });
+      s.log('client', '→ mutation hapusBuku(4)');
+      s.packet({
+        label: 'mutation hapusBuku',
+        inspect: {
+          title: 'GraphQL Mutation',
+          dir: 'Client → Server',
+          lines: [...httpReq, '{', '  "query": "mutation { hapusBuku(id: 4) { id } }"', '}'],
+        },
+      });
+      s.activate('server', 4, 'err');
+      s.process('server', 'parse: teks query → AST', 0.8);
+      s.process('server', 'validasi terhadap schema.graphql ✓', 0.8);
+      s.process('server', 'resolver hapusBuku(4) → NOT_FOUND', 1.1, 'err');
+      s.packet({
+        dir: 'back',
+        label: 'errors[ ]',
+        kind: 'err',
+        inspect: {
+          title: 'Respons Error Resolver',
+          dir: 'Server → Client',
+          badge: '200 OK + errors',
+          kind: 'err',
+          lines: [
+            ...httpRes,
+            '{"errors":[{',
+            '  "message":"Buku dengan id 4 tidak ditemukan",',
+            '  "path":["hapusBuku"],',
+            '  "extensions":{"code":"NOT_FOUND"}',
+            '}],',
+            ' "data":null}',
+          ],
+        },
+      });
+      s.log('client', '← errors: NOT_FOUND', 'err');
+      s.wait(3);
+
+      s.outro({
+        title: 'GraphQL',
+        bullets: [
+          'Satu endpoint; isi query menentukan data yang dikembalikan',
+          'Client memilih field sendiri, jadi tidak ada over-fetching',
+          'Query untuk membaca, Mutation untuk mengubah data',
+          'Query divalidasi dengan skema; error ada di "errors" (HTTP 200)',
+        ],
+        footer: 'Kode: GraphQL_API/server.js · GraphQL_API/schema.graphql',
+      });
+    },
+  );
+})();
+
+</script>
+<script>
+/* scenes/grpc.js */
+// Skenario 4: gRPC API (gRPC_API/server.js + perpustakaan.proto)
+(function () {
+  const { BUKU, BUKU_BARU } = SIM;
+  const rpc = ['GetAllBuku', 'GetBukuById', 'CreateBuku', 'UpdateBuku', 'DeleteBuku'];
+  const SVC = '/perpustakaan.PerpustakaanService';
+
+  // Satu baris byte protobuf: tag (pink), panjang (kuning), nilai (hijau), keterangan (abu)
+  function field(tag, len, data, note) {
+    const hex = [tag, len, data].filter(Boolean).join(' ');
+    const seg = [[tag, 'pink']];
+    if (len) seg.push([` ${len}`, 'warn']);
+    if (data) seg.push([` ${data}`, 'res']);
+    seg.push([`${' '.repeat(Math.max(2, 68 - hex.length))}← ${note}`, 'dim']);
+    return seg;
+  }
+  const frame = (text) => ({ t: text, c: 'warn' });
+  const prefix = (len, note) => [['  00', 'pink'], [` ${len}`, 'warn'], [`        ← ${note}`, 'dim']];
+
+  SIM.register(
+    'grpc',
+    {
+      index: 4,
+      title: 'gRPC',
+      accent: '#22c55e',
+      chips: ['HTTP/2', 'Protocol Buffers', 'Biner', 'Port 50051'],
+      ...SIM.layout.single({
+        client: { title: 'Client', subtitle: 'Node.js + @grpc/grpc-js' },
+        server: { title: 'Server gRPC', subtitle: '@grpc/grpc-js · 0.0.0.0:50051', idle: 'menunggu RPC…' },
+      }),
+      tables: { buku: BUKU },
+      linkState: { net: { open: false, label: 'belum terhubung' } },
+    },
+    (s) => {
+      s.intro({
+        title: 'gRPC',
+        subtitle: 'Remote Procedure Call buatan Google',
+        bullets: [
+          'Memanggil fungsi di server seolah-olah fungsi lokal',
+          'Kontrak ditulis di file .proto; kode stub dibuat otomatis',
+          'Data biner Protocol Buffers di atas HTTP/2: kecil dan cepat',
+        ],
+      });
+
+      // 1. Kontrak .proto
+      s.step('Kontrak .proto', 'Client dan server memuat file perpustakaan.proto yang sama. Client mendapat stub berisi method RPC, server mendaftarkan implementasinya.');
+      s.wait(0.6);
+      s.inspect({
+        kind: 'info',
+        title: 'perpustakaan.proto',
+        dir: 'dipakai client & server',
+        lines: [
+          'service PerpustakaanService {',
+          '  rpc GetAllBuku  (Kosong)            returns (DaftarBuku);',
+          '  rpc GetBukuById (BukuId)            returns (Buku);',
+          '  rpc CreateBuku  (BukuInput)         returns (Buku);',
+          '  rpc UpdateBuku  (UpdateBukuRequest) returns (Buku);',
+          '  rpc DeleteBuku  (BukuId)            returns (Buku);',
+          '}',
+          'message Buku {',
+          '  int32 id = 1;  string judul = 2;  string penulis = 3;  string penerbit = 4;',
+          '  int32 tahun_terbit = 5;  string isbn = 6;  int32 stok = 7;',
+          '}',
+        ],
+      });
+      s.process('client', 'protoLoader.loadSync(.proto)', 1.6, 'info', true);
+      s.process('server', 'protoLoader.loadSync(.proto)', 1.6);
+      s.extra('client', { title: 'Stub dari .proto', items: rpc.map((r) => `${r}()`) });
+      s.extra('server', { title: 'service PerpustakaanService', items: rpc });
+      s.wait(3.2);
+
+      // 2. Koneksi HTTP/2
+      s.step('Membuka koneksi HTTP/2', 'Setelah TCP handshake, client mengirim connection preface dan frame SETTINGS. Satu koneksi ini dipakai bersama oleh semua RPC.');
+      s.wait(0.6);
+      s.inspect({
+        kind: 'net',
+        title: 'Pembukaan koneksi HTTP/2',
+        dir: 'satu kali di awal',
+        lines: [
+          '# 1. TCP three-way handshake ke port 50051',
+          'Client → Server   SYN  ·  Server → Client   SYN-ACK  ·  Client → Server   ACK',
+          '',
+          '# 2. Connection preface dari client (24 byte):',
+          frame('PRI * HTTP/2.0\\r\\n\\r\\nSM\\r\\n\\r\\n'),
+          '',
+          '# 3. Kedua pihak bertukar frame SETTINGS di stream 0',
+          frame('SETTINGS (stream 0)   →   SETTINGS (stream 0)   ←   SETTINGS ACK'),
+          '',
+          '# createInsecure(): HTTP/2 tanpa TLS ("h2c"). Di produksi biasanya memakai TLS.',
+        ],
+      });
+      s.packet({ label: 'SYN', kind: 'net', dur: 0.8 });
+      s.packet({ dir: 'back', label: 'SYN-ACK', kind: 'net', dur: 0.8 });
+      s.packet({ label: 'ACK', kind: 'net', dur: 0.8 });
+      s.packet({ label: 'PRI * HTTP/2.0 + SETTINGS', kind: 'net', dur: 1.3 });
+      s.packet({ dir: 'back', label: 'SETTINGS', kind: 'net', dur: 1.1 });
+      s.packet({ label: 'SETTINGS ACK', kind: 'net', dur: 0.9 });
+      s.openLink('net', 'HTTP/2 (h2c) · 1 koneksi TCP :50051');
+      s.wait(2);
+
+      // 3. GetAllBuku
+      s.step('RPC GetAllBuku', 'Setiap panggilan RPC menjadi satu stream HTTP/2: frame HEADERS berisi nama method, frame DATA berisi pesan protobuf.');
+      s.wait(0.6);
+      s.activate('client', 0);
+      s.log('client', '→ GetAllBuku({})');
+      s.packet({
+        label: 'HEADERS + DATA',
+        sub: 'stream 1',
+        inspect: {
+          title: 'Frame HTTP/2: request',
+          dir: 'Client → Server',
+          lines: [
+            frame('HEADERS (stream 1)'),
+            '  :method: POST',
+            `  :path: ${SVC}/GetAllBuku`,
+            '  content-type: application/grpc',
+            '  te: trailers',
+            frame('DATA (stream 1)'),
+            prefix('00 00 00 00', 'flag kompresi + panjang pesan = 0 byte'),
+            '  # pesan Kosong {} tidak punya isi',
+          ],
+        },
+      });
+      s.activate('server', 0);
+      s.process('server', 'decode protobuf → GetAllBuku()', 1.2);
+      s.flash('buku', 'req');
+      s.wait(0.4);
+      s.packet({
+        dir: 'back',
+        label: 'HEADERS + DATA + TRAILERS',
+        kind: 'res',
+        sub: '210 byte (JSON: 424)',
+        inspect: {
+          title: 'Frame HTTP/2: response',
+          dir: 'Server → Client',
+          badge: 'grpc-status 0',
+          lines: [
+            frame('HEADERS (stream 1)'),
+            '  :status: 200',
+            '  content-type: application/grpc',
+            frame('DATA (stream 1)'),
+            prefix('00 00 00 d2', 'panjang = 210 byte (DaftarBuku)'),
+            [['  0a 46', 'pink'], [' 08 01 12 0e 4c 61 73 6b 61 72 20 50 65 6c 61 6e 67 69 …', 'res']],
+            frame('HEADERS (stream 1, trailers)'),
+            '  grpc-status: 0',
+            '  # 0 = OK. Status RPC dikirim di trailer, SETELAH data.',
+          ],
+        },
+      });
+      s.log('client', '← DaftarBuku · 3 buku', 'res');
+      s.wait(3);
+
+      // 4. CreateBuku (bedah byte protobuf)
+      s.step('RPC CreateBuku: isi pesan biner', 'Protobuf hanya mengirim nomor field + nilai, tanpa nama field. Hasilnya 66 byte, padahal JSON untuk data yang sama 130 byte.');
+      s.wait(0.6);
+      s.activate('client', 2);
+      s.log('client', '→ CreateBuku(…)');
+      s.packet({
+        label: 'HEADERS + DATA',
+        sub: 'stream 3 · 66 byte',
+        inspect: {
+          title: 'DATA (stream 3): BukuInput dalam protobuf',
+          dir: 'Client → Server',
+          badge: '66 byte',
+          lines: [
+            `:path: ${SVC}/CreateBuku`,
+            prefix('00 00 00 42', 'panjang = 66 byte'),
+            [['tag (nomor field + tipe)', 'pink'], ['   panjang', 'warn'], ['   nilai', 'res']],
+            field('0a', '14', '52 6f 6e 67 67 65 6e 67 20 44 75 6b 75 68 20 50 61 72 75 6b', 'field 1 judul'),
+            field('12', '0c', '41 68 6d 61 64 20 54 6f 68 61 72 69', 'field 2 penulis'),
+            field('1a', '08', '47 72 61 6d 65 64 69 61', 'field 3 penerbit'),
+            field('20', '', 'be 0f', 'field 4 tahun_terbit = 1982'),
+            field('2a', '0d', '39 37 38 39 37 39 32 32 32 33 34 37 37', 'field 5 isbn'),
+            field('30', '', '02', 'field 6 stok = 2'),
+          ],
+        },
+      });
+      s.activate('server', 2);
+      s.process('server', 'decode BukuInput → CreateBuku()', 1.2);
+      s.addRow('buku', BUKU_BARU);
+      s.wait(0.5);
+      s.packet({
+        dir: 'back',
+        label: 'HEADERS + DATA + TRAILERS',
+        kind: 'res',
+        sub: 'stream 3 · 68 byte',
+        inspect: {
+          title: 'Frame HTTP/2: response',
+          dir: 'Server → Client',
+          badge: 'grpc-status 0',
+          lines: [
+            frame('DATA (stream 3)'),
+            prefix('00 00 00 44', 'panjang = 68 byte (Buku)'),
+            [['  08', 'pink'], [' 04', 'res'], ['   ← field 1 id = 4 (diberikan server)', 'dim']],
+            [['  12', 'pink'], [' 14', 'warn'], [' 52 6f 6e 67 67 65 6e 67 20 44 75 6b 75 68 …', 'res']],
+            frame('HEADERS (stream 3, trailers)'),
+            '  grpc-status: 0',
+          ],
+        },
+      });
+      s.log('client', '← Buku · id 4', 'res');
+      s.wait(3);
+
+      // 5. UpdateBuku
+      s.step('RPC UpdateBuku', 'Field optional yang tidak dikirim tidak memakan byte sama sekali. Mengubah stok cukup dengan pesan 4 byte.');
+      s.wait(0.6);
+      s.activate('client', 3);
+      s.log('client', '→ UpdateBuku({id:4, stok:10})');
+      s.packet({
+        label: 'HEADERS + DATA',
+        sub: 'stream 5 · 4 byte',
+        inspect: {
+          title: 'DATA (stream 5): UpdateBukuRequest',
+          dir: 'Client → Server',
+          badge: '4 byte',
+          lines: [
+            `:path: ${SVC}/UpdateBuku`,
+            prefix('00 00 00 04', 'panjang = 4 byte'),
+            field('08', '', '04', 'field 1 id = 4'),
+            field('38', '', '0a', 'field 7 stok = 10   (tag 0x38 = 7 << 3 | 0)'),
+            '',
+            '# Bandingkan REST: body {"stok":10} = 11 byte + URL /api/buku/4',
+          ],
+        },
+      });
+      s.activate('server', 3);
+      s.process('server', 'UpdateBuku() → update(4)', 1.2);
+      s.updateRow('buku', 4, { stok: 10 });
+      s.wait(0.5);
+      s.packet({
+        dir: 'back',
+        label: 'DATA + TRAILERS',
+        kind: 'res',
+        sub: 'stream 5',
+        inspect: {
+          title: 'Frame HTTP/2: response',
+          dir: 'Server → Client',
+          badge: 'grpc-status 0',
+          lines: [frame('DATA (stream 5)'), prefix('00 00 00 44', 'Buku (68 byte), stok = 10'), frame('HEADERS (stream 5, trailers)'), '  grpc-status: 0'],
+        },
+      });
+      s.log('client', '← Buku · stok 10', 'res');
+      s.wait(2.4);
+
+      // 6. DeleteBuku
+      s.step('RPC DeleteBuku', 'Masih memakai koneksi yang sama, kali ini di stream 7. Pesan BukuId hanya 2 byte.');
+      s.wait(0.6);
+      s.activate('client', 4);
+      s.log('client', '→ DeleteBuku({id:4})');
+      s.packet({
+        label: 'HEADERS + DATA',
+        sub: 'stream 7 · 2 byte',
+        inspect: {
+          title: 'DATA (stream 7): BukuId',
+          dir: 'Client → Server',
+          badge: '2 byte',
+          lines: [`:path: ${SVC}/DeleteBuku`, prefix('00 00 00 02', 'panjang = 2 byte'), field('08', '', '04', 'field 1 id = 4')],
+        },
+      });
+      s.activate('server', 4);
+      s.process('server', 'DeleteBuku() → remove(4)', 1.2);
+      s.removeRow('buku', 4);
+      s.wait(0.7);
+      s.packet({
+        dir: 'back',
+        label: 'DATA + TRAILERS',
+        kind: 'res',
+        sub: 'stream 7',
+        inspect: {
+          title: 'Frame HTTP/2: response',
+          dir: 'Server → Client',
+          badge: 'grpc-status 0',
+          lines: [frame('DATA (stream 7)'), prefix('00 00 00 44', 'Buku yang dihapus (68 byte)'), frame('HEADERS (stream 7, trailers)'), '  grpc-status: 0'],
+        },
+      });
+      s.log('client', '← Buku terhapus', 'res');
+      s.wait(2.4);
+
+      // 7. Error NOT_FOUND
+      s.step('Error: status NOT_FOUND', 'Error gRPC dikirim lewat trailer grpc-status. Karena tidak ada data, server langsung mengirim respons "trailers-only".');
+      s.wait(0.6);
+      s.activate('client', 1);
+      s.log('client', '→ GetBukuById({id:4})');
+      s.packet({
+        label: 'HEADERS + DATA',
+        sub: 'stream 9',
+        inspect: {
+          title: 'DATA (stream 9): BukuId',
+          dir: 'Client → Server',
+          lines: [`:path: ${SVC}/GetBukuById`, prefix('00 00 00 02', 'panjang = 2 byte'), field('08', '', '04', 'field 1 id = 4')],
+        },
+      });
+      s.activate('server', 1, 'err');
+      s.process('server', 'getById(4) → null → NOT_FOUND', 1.3, 'err');
+      s.packet({
+        dir: 'back',
+        label: 'TRAILERS: status 5',
+        kind: 'err',
+        sub: 'stream 9 · tanpa DATA',
+        inspect: {
+          title: 'Respons trailers-only',
+          dir: 'Server → Client',
+          badge: 'NOT_FOUND (5)',
+          lines: [
+            frame('HEADERS (stream 9, END_STREAM)'),
+            '  :status: 200',
+            '  content-type: application/grpc',
+            '  grpc-status: 5',
+            '  grpc-message: Buku%20dengan%20id%204%20tidak%20ditemukan',
+            '',
+            '# HTTP-nya tetap 200; hasil RPC ditentukan oleh grpc-status.',
+            '# grpc-message di-percent-encode, client mendekodenya kembali.',
+          ],
+        },
+      });
+      s.log('client', '← error 5 NOT_FOUND', 'err');
+      s.wait(3);
+
+      s.outro({
+        title: 'gRPC',
+        bullets: [
+          'Method remote dipanggil seperti fungsi lokal lewat stub',
+          'Protobuf biner: nomor field + nilai, sekitar 2× lebih kecil dari JSON',
+          'HTTP/2: banyak RPC berbagi satu koneksi lewat stream',
+          'Cocok untuk komunikasi antar-microservice yang butuh performa',
+        ],
+        footer: 'Kode: gRPC_API/server.js · gRPC_API/perpustakaan.proto',
+      });
+    },
+  );
+})();
+
+</script>
+<script>
+/* scenes/websocket.js */
+// Skenario 5: WebSocket API (WebSocket_API/server.js)
+(function () {
+  const { BUKU, BUKU_BARU } = SIM;
+  const KOLOM = [
+    { key: 'id', label: 'ID', w: 56 },
+    { key: 'judul', label: 'JUDUL' },
+    { key: 'stok', label: 'STOK', w: 76, align: 'right' },
+  ];
+
+  // Potong JSON panjang menjadi beberapa baris (di batas koma)
+  function potong(json, max = 74) {
+    const out = [];
+    let line = '';
+    for (const part of json.split(/(?<=,)/)) {
+      if (line && (line + part).length > max) {
+        out.push(line);
+        line = ` ${part}`;
+      } else line += part;
+    }
+    out.push(line);
+    return out;
+  }
+
+  // Isi panel untuk satu frame WebSocket (teks). Frame dari client wajib di-mask.
+  function frame(obj, dariClient) {
+    const json = JSON.stringify(obj);
+    const len = json.length;
+    const ext = len > 125 ? 2 : 0;
+    const mask = dariClient ? 4 : 0;
+    const rincian = [`2 byte dasar`, ext && `${ext} byte panjang diperluas`, mask && `${mask} byte mask-key`].filter(Boolean).join(' + ');
+    return {
+      badge: `${len} byte`,
+      lines: [
+        { t: `FIN=1 · opcode=0x1 (teks) · MASK=${dariClient ? 1 : 0} · panjang payload=${len}`, c: 'warn' },
+        `# header frame ${2 + ext + mask} byte: ${rincian}`,
+        '',
+        ...potong(json),
+      ],
+    };
+  }
+
+  // Data lengkap seperti di bukuStore.js (untuk menghitung panjang payload yang sebenarnya)
+  const BUKU_LENGKAP = [
+    { id: 1, judul: 'Laskar Pelangi', penulis: 'Andrea Hirata', penerbit: 'Bentang Pustaka', tahunTerbit: 2005, isbn: '9789793062792', stok: 5 },
+    { id: 2, judul: 'Bumi Manusia', penulis: 'Pramoedya Ananta Toer', penerbit: 'Hasta Mitra', tahunTerbit: 1980, isbn: '9789799731234', stok: 3 },
+    { id: 3, judul: 'Negeri 5 Menara', penulis: 'Ahmad Fuadi', penerbit: 'Gramedia', tahunTerbit: 2009, isbn: '9789792248616', stok: 4 },
+  ];
+  const bukuJson = (b) => ({ id: b.id, judul: b.judul, penulis: b.penulis, penerbit: 'Gramedia', tahunTerbit: 1982, isbn: '9789792223477', stok: b.stok });
+
+  SIM.register(
+    'websocket',
+    {
+      index: 5,
+      title: 'WebSocket',
+      accent: '#a78bfa',
+      chips: ['RFC 6455', 'Full-duplex', 'JSON', 'Port 8080'],
+      nodes: [
+        { id: 'a', kind: 'client', compact: true, x: 70, y: 135, w: 500, h: 215, title: 'Client A', subtitle: 'admin · tab 1', logTitle: 'Log' },
+        {
+          id: 'b', kind: 'client', compact: true, x: 70, y: 365, w: 500, h: 285, title: 'Client B', subtitle: 'pengamat · tab 2',
+          table: 'bukuB', columns: KOLOM, rowH: 36, tableTitle: 'Tabel di layar (data lokal)', emptyText: '(belum memuat data)',
+        },
+        {
+          id: 'server', kind: 'server', x: 1350, y: 140, w: 500, h: 495, title: 'Server WebSocket', subtitle: 'Node.js + ws · :8080/ws',
+          table: 'buku', status: true, tableTitle: 'bukuStore.js (memori)', idle: 'mendengarkan pesan…',
+        },
+      ],
+      links: [
+        { id: 'la', from: 'a', to: 'server', by: -90 },
+        { id: 'lb', from: 'b', to: 'server', by: 90 },
+      ],
+      tables: { buku: BUKU, bukuB: [] },
+      linkState: { la: { open: false, label: 'belum terhubung' }, lb: { open: false, label: 'belum terhubung' } },
+      nodeState: { server: { extra: { title: 'wss.clients (koneksi aktif)', items: [], at: -9 } } },
+    },
+    (s) => {
+      const klien = (items) => s.extra('server', { title: 'wss.clients (koneksi aktif)', items });
+
+      s.intro({
+        title: 'WebSocket',
+        subtitle: 'Koneksi dua arah yang tetap terbuka',
+        bullets: [
+          'Diawali HTTP biasa, lalu "di-upgrade" menjadi koneksi WebSocket',
+          'Full-duplex: server bisa mengirim pesan kapan saja tanpa diminta',
+          'Cocok untuk aplikasi realtime: chat, notifikasi, dashboard live',
+        ],
+      });
+
+      // 1. Handshake client A
+      s.step('Handshake: upgrade dari HTTP', 'Client A mengirim request HTTP biasa dengan header Upgrade. Server membalas 101 Switching Protocols, lalu koneksi berganti protokol.');
+      s.wait(0.6);
+      s.log('a', '→ GET /ws (Upgrade)');
+      s.packet({
+        link: 'la',
+        label: 'GET /ws  Upgrade',
+        inspect: {
+          title: 'HTTP Upgrade Request',
+          dir: 'Client A → Server',
+          lines: [
+            'GET /ws HTTP/1.1',
+            'Host: localhost:8080',
+            'Upgrade: websocket',
+            'Connection: Upgrade',
+            'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
+            'Sec-WebSocket-Version: 13',
+          ],
+        },
+      });
+      s.process('server', 'SHA-1(Key + GUID) → base64', 1.3);
+      s.packet({
+        link: 'la',
+        dir: 'back',
+        label: '101 Switching Protocols',
+        kind: 'res',
+        inspect: {
+          title: 'HTTP Upgrade Response',
+          dir: 'Server → Client A',
+          badge: '101',
+          lines: [
+            'HTTP/1.1 101 Switching Protocols',
+            'Upgrade: websocket',
+            'Connection: Upgrade',
+            'Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=',
+            '',
+            '# Accept = base64( SHA1( Key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" ) )',
+            '# Mulai sekarang koneksi TCP ini berbicara dengan frame WebSocket, bukan HTTP.',
+          ],
+        },
+      });
+      s.openLink('la', 'WebSocket · full-duplex');
+      s.log('a', '← 101 · terhubung', 'res');
+      klien(['Client A']);
+      s.wait(2.8);
+
+      // 2. Client B terhubung dan memuat data
+      s.step('Client B terhubung & memuat data', 'Client B melakukan handshake yang sama, lalu mengirim pesan getAll. Pesan dikirim sebagai frame teks berisi JSON.');
+      s.wait(0.6);
+      s.inspect({ kind: 'req', title: 'HTTP Upgrade (Client B)', dir: 'Client B ↔ Server', lines: ['GET /ws HTTP/1.1', 'Upgrade: websocket', 'Sec-WebSocket-Key: …', '', 'HTTP/1.1 101 Switching Protocols'] });
+      s.packet({ link: 'lb', label: 'GET /ws  Upgrade', dur: 1.2 });
+      s.packet({ link: 'lb', dir: 'back', label: '101', kind: 'res', dur: 1.2 });
+      s.openLink('lb', 'WebSocket · full-duplex');
+      klien(['Client A', 'Client B']);
+      s.wait(0.8);
+      const reqB = { requestId: 1, aksi: 'getAll' };
+      s.packet({ link: 'lb', label: 'aksi: getAll', inspect: { title: 'Frame WebSocket (teks, di-mask)', dir: 'Client B → Server', ...frame(reqB, true) } });
+      s.process('server', "switch (aksi) → case 'getAll'", 1.1);
+      s.flash('buku', 'req');
+      s.packet({
+        link: 'lb',
+        dir: 'back',
+        label: 'respons: 3 buku',
+        kind: 'res',
+        inspect: {
+          title: 'Frame WebSocket (teks, tanpa mask)',
+          dir: 'Server → Client B',
+          ...frame({ tipe: 'respons', requestId: 1, aksi: 'getAll', status: 'sukses', data: BUKU_LENGKAP }, false),
+        },
+      });
+      s.setRows('bukuB', BUKU);
+      s.wait(2.6);
+
+      // 3. Client A menambah buku → broadcast
+      s.step('CREATE + server push', 'Client A menambah buku. Server menyimpan, lalu mem-broadcast notifikasi ke SEMUA client, termasuk Client B yang tidak meminta apa pun.');
+      s.wait(0.6);
+      const create = { requestId: 1, aksi: 'create', data: { judul: BUKU_BARU.judul, penulis: BUKU_BARU.penulis, penerbit: 'Gramedia', tahunTerbit: 1982, isbn: '9789792223477', stok: 2 } };
+      s.log('a', '→ aksi: create');
+      s.packet({ link: 'la', label: 'aksi: create', inspect: { title: 'Frame WebSocket (teks, di-mask)', dir: 'Client A → Server', ...frame(create, true) } });
+      s.process('server', 'create() → broadcast()', 1.2);
+      s.addRow('buku', BUKU_BARU);
+      const notifTambah = { tipe: 'notifikasi', event: 'buku.ditambahkan', data: bukuJson(BUKU_BARU) };
+      s.packet({ link: 'la', dir: 'back', label: 'notifikasi', kind: 'push', parallel: true });
+      s.packet({ link: 'lb', dir: 'back', label: 'notifikasi', kind: 'push', inspect: { title: 'Frame notifikasi (server push)', dir: 'Server → semua client', ...frame(notifTambah, false) } });
+      s.addRow('bukuB', BUKU_BARU);
+      s.log('a', '← notifikasi buku.ditambahkan', 'push');
+      s.wait(0.3);
+      s.packet({ link: 'la', dir: 'back', label: 'respons: sukses', kind: 'res', dur: 1.4 });
+      s.log('a', '← respons create: sukses', 'res');
+      s.wait(2.6);
+
+      // 4. Update → broadcast
+      s.step('UPDATE + server push', 'Client A mengubah stok. Tabel di layar Client B langsung ikut berubah tanpa refresh dan tanpa polling.');
+      s.wait(0.6);
+      const update = { requestId: 2, aksi: 'update', id: 4, data: { stok: 10 } };
+      s.log('a', '→ aksi: update');
+      s.packet({ link: 'la', label: 'aksi: update', inspect: { title: 'Frame WebSocket (teks, di-mask)', dir: 'Client A → Server', ...frame(update, true) } });
+      s.process('server', 'update(4) → broadcast()', 1.1);
+      s.updateRow('buku', 4, { stok: 10 });
+      const notifUbah = { tipe: 'notifikasi', event: 'buku.diperbarui', data: bukuJson({ ...BUKU_BARU, stok: 10 }) };
+      s.packet({ link: 'la', dir: 'back', label: 'notifikasi', kind: 'push', parallel: true });
+      s.packet({ link: 'lb', dir: 'back', label: 'notifikasi', kind: 'push', inspect: { title: 'Frame notifikasi (server push)', dir: 'Server → semua client', ...frame(notifUbah, false) } });
+      s.updateRow('bukuB', 4, { stok: 10 }, 'push');
+      s.log('a', '← notifikasi buku.diperbarui', 'push');
+      s.wait(0.3);
+      s.packet({ link: 'la', dir: 'back', label: 'respons: sukses', kind: 'res', dur: 1.4 });
+      s.log('a', '← respons update: sukses', 'res');
+      s.wait(2.4);
+
+      // 5. Delete → broadcast
+      s.step('DELETE + server push', 'Client A menghapus buku id 4. Notifikasi buku.dihapus membuat baris itu hilang juga di Client B.');
+      s.wait(0.6);
+      const hapus = { requestId: 3, aksi: 'delete', id: 4 };
+      s.log('a', '→ aksi: delete');
+      s.packet({ link: 'la', label: 'aksi: delete', inspect: { title: 'Frame WebSocket (teks, di-mask)', dir: 'Client A → Server', ...frame(hapus, true) } });
+      s.process('server', 'remove(4) → broadcast()', 1.1);
+      s.removeRow('buku', 4);
+      const notifHapus = { tipe: 'notifikasi', event: 'buku.dihapus', data: bukuJson({ ...BUKU_BARU, stok: 10 }) };
+      s.packet({ link: 'la', dir: 'back', label: 'notifikasi', kind: 'push', parallel: true });
+      s.packet({ link: 'lb', dir: 'back', label: 'notifikasi', kind: 'push', inspect: { title: 'Frame notifikasi (server push)', dir: 'Server → semua client', ...frame(notifHapus, false) } });
+      s.removeRow('bukuB', 4);
+      s.log('a', '← notifikasi buku.dihapus', 'push');
+      s.wait(0.3);
+      s.packet({ link: 'la', dir: 'back', label: 'respons: sukses', kind: 'res', dur: 1.4 });
+      s.log('a', '← respons delete: sukses', 'res');
+      s.wait(2.4);
+
+      // 6. Menutup koneksi
+      s.step('Menutup koneksi', 'Saat tab Client B ditutup, browser mengirim frame Close (opcode 0x8). Server membalas Close, lalu Client B dikeluarkan dari daftar koneksi aktif.');
+      s.wait(0.6);
+      s.packet({
+        link: 'lb',
+        label: 'Close 1001',
+        kind: 'net',
+        inspect: {
+          kind: 'net',
+          title: 'Frame Close (kontrol)',
+          dir: 'Client B → Server',
+          lines: [
+            { t: 'FIN=1 · opcode=0x8 (close) · MASK=1 · panjang payload=2', c: 'warn' },
+            '# payload = kode status 2 byte',
+            [['03 e9', 'pink'], ['   ← 1001 "going away" (halaman ditutup)', 'dim']],
+            '',
+            '# Opcode lain: 0x1 teks · 0x2 biner · 0x9 ping · 0xA pong',
+          ],
+        },
+      });
+      s.packet({ link: 'lb', dir: 'back', label: 'Close', kind: 'net', dur: 1.3 });
+      s.closeLink('lb', 'koneksi ditutup');
+      klien(['Client A']);
+      s.wait(3);
+
+      s.outro({
+        title: 'WebSocket',
+        bullets: [
+          'Handshake HTTP sekali (101 Switching Protocols), lalu koneksi tetap terbuka',
+          'Pesan dikirim dalam frame dengan header kecil, hanya 2–14 byte',
+          'Full-duplex: server bisa push notifikasi ke semua client',
+          'Format pesan (aksi, requestId, tipe) dirancang sendiri oleh developer',
+        ],
+        footer: 'Kode: WebSocket_API/server.js · WebSocket_API/index.html',
+      });
+    },
+  );
+})();
+
+</script>
+
+<script>
+  (function () {
+    SIM.fonts({
+      sans: '"IBM Plex Sans", "Helvetica Neue", Arial, sans-serif',
+      mono: '"IBM Plex Mono", Menlo, Consolas, monospace',
+    });
+
+    const NAMA = { rest: 'REST', soap: 'SOAP', graphql: 'GraphQL', grpc: 'gRPC', websocket: 'WebSocket' };
+    const KODE = {
+      rest: ['REST_API/server.js'],
+      soap: ['SOAP_API/server.js', 'SOAP_API/perpustakaan.wsdl'],
+      graphql: ['GraphQL_API/server.js', 'GraphQL_API/schema.graphql'],
+      grpc: ['gRPC_API/server.js', 'gRPC_API/perpustakaan.proto'],
+      websocket: ['WebSocket_API/server.js', 'WebSocket_API/index.html'],
+    };
+    const IKON_PUTAR = '<svg viewBox="0 0 16 16"><path d="M3 1.5v13L14 8z"/></svg>Putar';
+    const IKON_JEDA = '<svg viewBox="0 0 16 16"><path d="M3 2h3.5v12H3zM9.5 2H13v12H9.5z"/></svg>Jeda';
+
+    const $ = (id) => document.getElementById(id);
+    const canvas = $('layar');
+    const ctx = canvas.getContext('2d');
+    const kurangGerak = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let aktif = SIM.order[0];
+    let t = 0;
+    let main = !kurangGerak;
+    let kecepatan = 1;
+    let sebelum = performance.now();
+    let bab = [];
+    let babAktif = -1;
+
+    const fmt = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, '0')}`;
+
+    // Bab = pengantar + setiap langkah + ringkasan
+    function susunBab(id) {
+      const sc = SIM.scenes[id];
+      const intro = sc.overlays.find((o) => o.kind === 'intro');
+      const outro = sc.overlays.find((o) => o.kind === 'outro');
+      return [
+        { judul: 'Pengantar', at: intro ? intro.at : 0, no: '·' },
+        ...sc.steps.map((s, i) => ({ judul: s.title, at: s.at, no: String(i + 1) })),
+        ...(outro ? [{ judul: 'Ringkasan', at: outro.at + 0.01, no: '·' }] : []),
+      ];
+    }
+
+    for (const [i, id] of SIM.order.entries()) {
+      const sc = SIM.scenes[id];
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tab';
+      b.setAttribute('role', 'tab');
+      b.dataset.id = id;
+      b.style.setProperty('--tab-accent', sc.cfg.accent);
+      b.innerHTML = `<span class="n">0${i + 1}</span><span class="nama">${NAMA[id] || id}</span><span class="spek">${sc.cfg.chips.slice(0, 3).join(' · ')}</span>`;
+      b.addEventListener('click', () => pilih(id, true));
+      $('tabs').appendChild(b);
+    }
+
+    function setMain(v) {
+      main = v;
+      $('putar').innerHTML = main ? IKON_JEDA : IKON_PUTAR;
+      $('putar').setAttribute('aria-label', main ? 'Jeda' : 'Putar');
+    }
+
+    function pilih(id, mulai) {
+      aktif = id;
+      t = 0;
+      const sc = SIM.scenes[id];
+      const d = sc.duration;
+      document.documentElement.style.setProperty('--accent', sc.cfg.accent);
+      for (const b of $('tabs').children) b.setAttribute('aria-selected', String(b.dataset.id === id));
+
+      bab = susunBab(id);
+      babAktif = -1;
+      $('daftar').innerHTML = '';
+      bab.forEach((x, i) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<button type="button"><span class="no">${x.no}</span><span class="judul"></span><span class="ts">${fmt(x.at)}</span></button>`;
+        li.querySelector('.judul').textContent = x.judul;
+        li.querySelector('button').addEventListener('click', () => lompat(i));
+        $('daftar').appendChild(li);
+      });
+      $('tanda').innerHTML = bab.slice(1).map((x) => `<i style="left:calc(${(x.at / d) * 100}% - 1px)"></i>`).join('');
+      $('kode').innerHTML = 'Kode sumber: ' + KODE[id].map((k) => `<b>${k}</b>`).join(', ');
+      for (const el of document.querySelectorAll('[data-p], td, th')) el.classList.remove('on');
+      const kol = [...document.querySelectorAll('thead th')].findIndex((th) => th.dataset.p === id);
+      for (const tr of document.querySelectorAll('table tr')) tr.children[kol] && tr.children[kol].classList.add('on');
+      try { history.replaceState(null, '', `#${id}`); } catch (e) { /* abaikan */ }
+      if (mulai !== undefined) setMain(mulai && !kurangGerak);
+    }
+
+    function lompat(i) {
+      if (!bab[i]) return;
+      t = bab[i].at + 0.01;
+      sebelum = performance.now();
+      setMain(true);
+    }
+
+    function indeksBab() {
+      let k = 0;
+      bab.forEach((x, i) => { if (x.at <= t + 0.02) k = i; });
+      return k;
+    }
+
+    $('putar').addEventListener('click', () => {
+      if (t >= SIM.duration(aktif)) t = 0;
+      setMain(!main);
+    });
+    canvas.addEventListener('click', () => $('putar').click());
+    $('mundur').addEventListener('click', () => {
+      const k = indeksBab();
+      // Jika baru mulai di langkah ini, mundur ke langkah sebelumnya
+      lompat(t - bab[k].at < 1.5 ? Math.max(0, k - 1) : k);
+    });
+    $('maju').addEventListener('click', () => lompat(Math.min(bab.length - 1, indeksBab() + 1)));
+    $('kecepatan').addEventListener('change', (e) => (kecepatan = Number(e.target.value)));
+    $('geser').addEventListener('input', (e) => (t = (e.target.value / 1000) * SIM.duration(aktif)));
+    $('penuh').addEventListener('click', () => {
+      const st = $('stage');
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      else if (st.requestFullscreen) st.requestFullscreen().catch(() => {});
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.target.closest('select, input')) return;
+      if (e.code === 'Space') { e.preventDefault(); $('putar').click(); }
+      if (e.code === 'ArrowRight') { e.preventDefault(); $('maju').click(); }
+      if (e.code === 'ArrowLeft') { e.preventDefault(); $('mundur').click(); }
+      if (e.code === 'KeyF') $('penuh').click();
+    });
+
+    function loop(now) {
+      const d = SIM.duration(aktif);
+      if (main) t = Math.min(d, t + ((now - sebelum) / 1000) * kecepatan);
+      if (main && t >= d) setMain(false);
+      sebelum = now;
+      SIM.render(ctx, aktif, t);
+      $('geser').value = Math.round((t / d) * 1000);
+      $('waktu').textContent = `${fmt(t)} / ${fmt(d)}`;
+      const k = indeksBab();
+      if (k !== babAktif) {
+        babAktif = k;
+        [...$('daftar').children].forEach((li, i) => {
+          li.classList.toggle('aktif', i === k);
+          li.classList.toggle('lewat', i < k);
+        });
+      }
+      requestAnimationFrame(loop);
+    }
+
+    const awal = location.hash.slice(1);
+    pilih(SIM.scenes[awal] ? awal : aktif);
+    setMain(main);
+    requestAnimationFrame(loop);
+  })();
+</script>
+
+</body>
+</html>
