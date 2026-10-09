@@ -10,7 +10,7 @@ Lima implementasi untuk kasus yang sama. Semua folder memakai `bukuStore.js` yan
 | `gRPC_API` | 50051 | `npm install && npm start`, lalu `npm run client` |
 | `WebSocket_API` | 8080 | `npm install && npm start`, lalu `npm run client` |
 
-Contoh request lengkap ada di README masing-masing folder.
+Contoh request lengkap ada di README masing-masing folder. Untuk Postman, import `postman/Perpustakaan_API.postman_collection.json`; panduan gRPC dan WebSocket ada di `postman/README.md`.
 
 Video animasi simulasi tiap protokol ada di `SIMULASI_VIDEO/output/`. Versi web interaktifnya ada di `SIMULASI_VIDEO/web/simulasi.html`.
 
